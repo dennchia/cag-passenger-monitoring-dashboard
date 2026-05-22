@@ -1,0 +1,109 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-05-20T14:00:00+08:00",
+  "run_id": "scenario_registered_persons",
+  "total_count": 84,
+  "capacity_limit": 150,
+  "status": "normal",
+  "system_health": {
+    "fusion_engine": "Online",
+    "power": "Normal",
+    "network": "Online"
+  },
+  "zones": [
+    {
+      "zone_id": "A",
+      "count": 27
+    },
+    {
+      "zone_id": "B",
+      "count": 29
+    },
+    {
+      "zone_id": "C",
+      "count": 28
+    }
+  ],
+  "cameras": [
+    {
+      "camera_id": "cam_1",
+      "status": "online",
+      "count": 29,
+      "fps": 12.7,
+      "visibility_status": "normal"
+    },
+    {
+      "camera_id": "cam_2",
+      "status": "online",
+      "count": 28,
+      "fps": 12.1,
+      "visibility_status": "normal"
+    },
+    {
+      "camera_id": "cam_3",
+      "status": "online",
+      "count": 27,
+      "fps": 11.8,
+      "visibility_status": "normal"
+    }
+  ],
+  "recognized_persons": [
+    {
+      "person_id": "P001",
+      "label": "Test User 1",
+      "status": "inside",
+      "last_seen": "2026-05-20T13:59:40+08:00",
+      "camera_id": "cam_1",
+      "confidence": 0.94
+    },
+    {
+      "person_id": "P002",
+      "label": "Test User 2",
+      "status": "recently_seen",
+      "last_seen": "2026-05-20T13:58:25+08:00",
+      "camera_id": "cam_2",
+      "confidence": 0.87
+    },
+    {
+      "person_id": "P003",
+      "label": "Test User 3",
+      "status": "inside",
+      "last_seen": "2026-05-20T13:59:10+08:00",
+      "camera_id": "cam_3",
+      "confidence": 0.64
+    }
+  ],
+  "alerts": [
+    {
+      "level": "warning",
+      "message": "P003 is a possible match only; manual verification required",
+      "timestamp": "2026-05-20T13:59:10+08:00"
+    }
+  ],
+  "event_log": [
+    {
+      "level": "info",
+      "message": "Registered persons scenario started",
+      "timestamp": "2026-05-20T13:56:00+08:00"
+    },
+    {
+      "level": "warning",
+      "message": "Low confidence registered-person match",
+      "timestamp": "2026-05-20T13:59:10+08:00"
+    }
+  ],
+  "count_history": [
+    {
+      "timestamp": "13:56",
+      "total_count": 78
+    },
+    {
+      "timestamp": "13:57",
+      "total_count": 81
+    },
+    {
+      "timestamp": "14:00",
+      "total_count": 84
+    }
+  ]
+}

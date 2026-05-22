@@ -1,0 +1,79 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-05-20T13:30:00+08:00",
+  "run_id": "scenario_fusion_system_offline",
+  "total_count": 89,
+  "capacity_limit": 150,
+  "status": "offline",
+  "system_health": {
+    "fusion_engine": "Offline",
+    "power": "Normal",
+    "network": "Degraded"
+  },
+  "zones": [
+    {
+      "zone_id": "A",
+      "count": 30
+    },
+    {
+      "zone_id": "B",
+      "count": 28
+    },
+    {
+      "zone_id": "C",
+      "count": 31
+    }
+  ],
+  "cameras": [
+    {
+      "camera_id": "cam_1",
+      "status": "online",
+      "count": 31,
+      "fps": 12.1,
+      "visibility_status": "normal"
+    },
+    {
+      "camera_id": "cam_2",
+      "status": "online",
+      "count": 30,
+      "fps": 11.7,
+      "visibility_status": "normal"
+    },
+    {
+      "camera_id": "cam_3",
+      "status": "online",
+      "count": 28,
+      "fps": 11.2,
+      "visibility_status": "normal"
+    }
+  ],
+  "recognized_persons": [],
+  "alerts": [
+    {
+      "level": "critical",
+      "message": "Fusion engine offline; displaying last known output",
+      "timestamp": "2026-05-20T13:30:00+08:00"
+    }
+  ],
+  "event_log": [
+    {
+      "level": "critical",
+      "message": "Fusion engine stopped writing fresh output",
+      "timestamp": "2026-05-20T13:30:00+08:00"
+    }
+  ],
+  "count_history": [
+    {
+      "timestamp": "13:27",
+      "total_count": 84
+    },
+    {
+      "timestamp": "13:28",
+      "total_count": 87
+    },
+    {
+      "timestamp": "13:30",
+      "total_count": 89
+    }
+  ]
+}

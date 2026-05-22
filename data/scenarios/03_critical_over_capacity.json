@@ -1,0 +1,92 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-05-20T13:50:00+08:00",
+  "run_id": "scenario_critical_over_capacity",
+  "total_count": 136,
+  "capacity_limit": 150,
+  "status": "critical",
+  "system_health": {
+    "fusion_engine": "Online",
+    "power": "Normal",
+    "network": "Online"
+  },
+  "zones": [
+    {
+      "zone_id": "A",
+      "count": 44
+    },
+    {
+      "zone_id": "B",
+      "count": 45
+    },
+    {
+      "zone_id": "C",
+      "count": 47
+    }
+  ],
+  "cameras": [
+    {
+      "camera_id": "cam_1",
+      "status": "online",
+      "count": 46,
+      "fps": 12.0,
+      "visibility_status": "normal"
+    },
+    {
+      "camera_id": "cam_2",
+      "status": "online",
+      "count": 48,
+      "fps": 11.5,
+      "visibility_status": "normal"
+    },
+    {
+      "camera_id": "cam_3",
+      "status": "online",
+      "count": 42,
+      "fps": 11.1,
+      "visibility_status": "normal"
+    }
+  ],
+  "recognized_persons": [],
+  "alerts": [
+    {
+      "level": "critical",
+      "message": "Capacity exceeded critical threshold",
+      "timestamp": "2026-05-20T13:50:00+08:00"
+    }
+  ],
+  "event_log": [
+    {
+      "level": "warning",
+      "message": "Occupancy passed warning threshold",
+      "timestamp": "2026-05-20T13:48:00+08:00"
+    },
+    {
+      "level": "critical",
+      "message": "Capacity exceeded critical threshold",
+      "timestamp": "2026-05-20T13:50:00+08:00"
+    }
+  ],
+  "count_history": [
+    {
+      "timestamp": "13:46",
+      "total_count": 101
+    },
+    {
+      "timestamp": "13:47",
+      "total_count": 112
+    },
+    {
+      "timestamp": "13:48",
+      "total_count": 124
+    },
+    {
+      "timestamp": "13:49",
+      "total_count": 131
+    },
+    {
+      "timestamp": "13:50",
+      "total_count": 136
+    }
+  ]
+}

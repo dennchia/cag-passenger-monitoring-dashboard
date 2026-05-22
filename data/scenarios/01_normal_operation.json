@@ -1,0 +1,77 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-05-20T13:40:00+08:00",
+  "run_id": "scenario_normal_operation",
+  "total_count": 72,
+  "capacity_limit": 150,
+  "status": "normal",
+  "system_health": {
+    "fusion_engine": "Online",
+    "power": "Normal",
+    "network": "Online"
+  },
+  "zones": [
+    {
+      "zone_id": "A",
+      "count": 22
+    },
+    {
+      "zone_id": "B",
+      "count": 24
+    },
+    {
+      "zone_id": "C",
+      "count": 26
+    }
+  ],
+  "cameras": [
+    {
+      "camera_id": "cam_1",
+      "status": "online",
+      "count": 25,
+      "fps": 12.8,
+      "visibility_status": "normal"
+    },
+    {
+      "camera_id": "cam_2",
+      "status": "online",
+      "count": 23,
+      "fps": 12.4,
+      "visibility_status": "normal"
+    },
+    {
+      "camera_id": "cam_3",
+      "status": "online",
+      "count": 24,
+      "fps": 11.9,
+      "visibility_status": "normal"
+    }
+  ],
+  "recognized_persons": [],
+  "alerts": [],
+  "event_log": [
+    {
+      "level": "info",
+      "message": "Normal operation scenario started",
+      "timestamp": "2026-05-20T13:35:00+08:00"
+    }
+  ],
+  "count_history": [
+    {
+      "timestamp": "13:35",
+      "total_count": 68
+    },
+    {
+      "timestamp": "13:36",
+      "total_count": 69
+    },
+    {
+      "timestamp": "13:37",
+      "total_count": 71
+    },
+    {
+      "timestamp": "13:40",
+      "total_count": 72
+    }
+  ]
+}

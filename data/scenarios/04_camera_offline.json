@@ -1,0 +1,79 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-05-20T13:55:00+08:00",
+  "run_id": "scenario_camera_offline",
+  "total_count": 96,
+  "capacity_limit": 150,
+  "status": "normal",
+  "system_health": {
+    "fusion_engine": "Online",
+    "power": "Normal",
+    "network": "Online"
+  },
+  "zones": [
+    {
+      "zone_id": "A",
+      "count": 30
+    },
+    {
+      "zone_id": "B",
+      "count": 31
+    },
+    {
+      "zone_id": "C",
+      "count": 35
+    }
+  ],
+  "cameras": [
+    {
+      "camera_id": "cam_1",
+      "status": "online",
+      "count": 34,
+      "fps": 12.3,
+      "visibility_status": "normal"
+    },
+    {
+      "camera_id": "cam_2",
+      "status": "offline",
+      "count": null,
+      "fps": 0,
+      "visibility_status": "unknown"
+    },
+    {
+      "camera_id": "cam_3",
+      "status": "online",
+      "count": 32,
+      "fps": 11.6,
+      "visibility_status": "normal"
+    }
+  ],
+  "recognized_persons": [],
+  "alerts": [
+    {
+      "level": "warning",
+      "message": "cam_2 offline; fused count reliability is reduced",
+      "timestamp": "2026-05-20T13:55:00+08:00"
+    }
+  ],
+  "event_log": [
+    {
+      "level": "warning",
+      "message": "Camera cam_2 offline",
+      "timestamp": "2026-05-20T13:55:00+08:00"
+    }
+  ],
+  "count_history": [
+    {
+      "timestamp": "13:51",
+      "total_count": 91
+    },
+    {
+      "timestamp": "13:52",
+      "total_count": 94
+    },
+    {
+      "timestamp": "13:55",
+      "total_count": 96
+    }
+  ]
+}

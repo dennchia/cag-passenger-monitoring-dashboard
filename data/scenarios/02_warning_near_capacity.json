@@ -1,0 +1,88 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-05-20T13:45:00+08:00",
+  "run_id": "scenario_warning_near_capacity",
+  "total_count": 112,
+  "capacity_limit": 150,
+  "status": "warning",
+  "system_health": {
+    "fusion_engine": "Online",
+    "power": "Normal",
+    "network": "Online"
+  },
+  "zones": [
+    {
+      "zone_id": "A",
+      "count": 35
+    },
+    {
+      "zone_id": "B",
+      "count": 38
+    },
+    {
+      "zone_id": "C",
+      "count": 39
+    }
+  ],
+  "cameras": [
+    {
+      "camera_id": "cam_1",
+      "status": "online",
+      "count": 39,
+      "fps": 12.2,
+      "visibility_status": "normal"
+    },
+    {
+      "camera_id": "cam_2",
+      "status": "online",
+      "count": 37,
+      "fps": 11.9,
+      "visibility_status": "normal"
+    },
+    {
+      "camera_id": "cam_3",
+      "status": "online",
+      "count": 36,
+      "fps": 11.4,
+      "visibility_status": "normal"
+    }
+  ],
+  "recognized_persons": [],
+  "alerts": [
+    {
+      "level": "warning",
+      "message": "Occupancy is approaching capacity threshold",
+      "timestamp": "2026-05-20T13:45:00+08:00"
+    }
+  ],
+  "event_log": [
+    {
+      "level": "info",
+      "message": "Warning scenario started",
+      "timestamp": "2026-05-20T13:41:00+08:00"
+    },
+    {
+      "level": "warning",
+      "message": "Occupancy crossed warning level",
+      "timestamp": "2026-05-20T13:45:00+08:00"
+    }
+  ],
+  "count_history": [
+    {
+      "timestamp": "13:41",
+      "total_count": 88
+    },
+    {
+      "timestamp": "13:42",
+      "total_count": 94
+    },
+    {
+      "timestamp": "13:43",
+      "total_count": 103
+    },
+    {
+      "timestamp": "13:45",
+      "total_count": 112
+    }
+  ]
+}

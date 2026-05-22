@@ -1,0 +1,119 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-05-20T13:58:00+08:00",
+  "run_id": "field_test_001",
+  "total_count": 128,
+  "capacity_limit": 150,
+  "status": "critical",
+  "system_health": {
+    "fusion_engine": "Online",
+    "power": "Normal",
+    "network": "Online"
+  },
+  "zones": [
+    {
+      "zone_id": "A",
+      "count": 42
+    },
+    {
+      "zone_id": "B",
+      "count": 36
+    },
+    {
+      "zone_id": "C",
+      "count": 50
+    }
+  ],
+  "cameras": [
+    {
+      "camera_id": "cam_1",
+      "status": "online",
+      "count": 39,
+      "fps": 12.5,
+      "visibility_status": "normal"
+    },
+    {
+      "camera_id": "cam_2",
+      "status": "online",
+      "count": 45,
+      "fps": 11.8,
+      "visibility_status": "normal"
+    },
+    {
+      "camera_id": "cam_3",
+      "status": "offline",
+      "count": null,
+      "fps": 0,
+      "visibility_status": "unknown"
+    }
+  ],
+  "recognized_persons": [
+    {
+      "person_id": "P001",
+      "label": "Test User 1",
+      "status": "inside",
+      "last_seen": "2026-05-20T13:57:40+08:00",
+      "camera_id": "cam_2",
+      "confidence": 0.92
+    },
+    {
+      "person_id": "P003",
+      "label": "Test User 3",
+      "status": "inside",
+      "last_seen": "2026-05-20T13:57:20+08:00",
+      "camera_id": "cam_3",
+      "confidence": 0.68
+    }
+  ],
+  "alerts": [
+    {
+      "level": "critical",
+      "message": "Capacity exceeded critical threshold",
+      "timestamp": "2026-05-20T13:58:00+08:00"
+    },
+    {
+      "level": "warning",
+      "message": "cam_3 is offline; count reliability is reduced",
+      "timestamp": "2026-05-20T13:57:10+08:00"
+    }
+  ],
+  "event_log": [
+    {
+      "level": "info",
+      "message": "Field test started",
+      "timestamp": "2026-05-20T13:52:00+08:00"
+    },
+    {
+      "level": "warning",
+      "message": "cam_3 disconnected",
+      "timestamp": "2026-05-20T13:57:10+08:00"
+    },
+    {
+      "level": "critical",
+      "message": "Capacity exceeded critical threshold",
+      "timestamp": "2026-05-20T13:58:00+08:00"
+    }
+  ],
+  "count_history": [
+    {
+      "timestamp": "13:52",
+      "total_count": 82
+    },
+    {
+      "timestamp": "13:53",
+      "total_count": 96
+    },
+    {
+      "timestamp": "13:54",
+      "total_count": 113
+    },
+    {
+      "timestamp": "13:55",
+      "total_count": 121
+    },
+    {
+      "timestamp": "13:58",
+      "total_count": 128
+    }
+  ]
+}
