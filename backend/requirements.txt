@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+opencv-python
+sqlalchemy
+pydantic
+pydantic-settings
+python-dotenv
+numpy
+python-multipart

@@ -1,8 +1,16 @@
 __pycache__/
 *.py[cod]
 .venv/
+node_modules/
+dist/
 streamlit.out.log
 streamlit.err.log
+*.log
 .streamlit/
 .env
+.env.local
+*.db
+*.db-wal
+*.db-shm
 *.pt
+backend/uploads/
