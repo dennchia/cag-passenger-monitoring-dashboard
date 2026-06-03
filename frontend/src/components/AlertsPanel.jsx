@@ -13,9 +13,9 @@ function formatTime(value) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-export default function AlertsPanel({ alerts }) {
+export default function AlertsPanel({ alerts, compact = false }) {
   return (
-    <section className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
+    <section className={compact ? "" : "rounded-lg border border-slate-800 bg-slate-900/70 p-4"}>
       <div className="mb-3 flex items-center gap-2">
         <AlertTriangle className="h-4 w-4 text-amber-300" />
         <h2 className="text-sm font-bold uppercase tracking-wide text-slate-200">Latest Alerts</h2>

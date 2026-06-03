@@ -1,4 +1,5 @@
 import { MonitorDot, Search, Video } from "lucide-react";
+import ThemeDropdown from "./ThemeDropdown.jsx";
 
 const tabs = [
   { id: "operations", label: "Operations", icon: Video },
@@ -26,14 +27,17 @@ export default function DashboardLayout({ children, sidebar, status, cameras = [
               FastAPI streaming engine with SQLite-backed metrics, alerts, and assistance logs.
             </p>
           </div>
-          <div
-            className={`rounded-lg border px-4 py-3 text-sm font-bold ${
-              connected
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
-                : "border-amber-500/30 bg-amber-500/10 text-amber-100"
-            }`}
-          >
-            {cameraCount ? `${onlineCameraCount}/${cameraCount} Cameras Online` : "Cameras Loading"}
+          <div className="flex items-center gap-3">
+            <div
+              className={`rounded-lg border px-4 py-3 text-sm font-bold ${
+                connected
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
+                  : "border-amber-500/30 bg-amber-500/10 text-amber-100"
+              }`}
+            >
+              {cameraCount ? `${onlineCameraCount}/${cameraCount} Cameras Online` : "Cameras Loading"}
+            </div>
+            <ThemeDropdown />
           </div>
         </header>
 

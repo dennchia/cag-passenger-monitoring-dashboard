@@ -1,8 +1,11 @@
-import { Camera, Clock, RefreshCw, Search, ShieldCheck, Trash2, UserRound } from "lucide-react";
+import { AlertTriangle, Camera, Clock, RefreshCw, Search, ShieldCheck, Trash2, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { endpoints, fetchJson, resolveApiUrl, withQuery } from "../lib/api.js";
 
 const POLL_MS = 3000;
+const MIN_AGE = 0;
+const MAX_AGE = 120;
+const BLOCKED_AGE_KEYS = new Set(["e", "E", "+", "-", ".", ","]);
 
 function formatTime(value) {
   if (!value) return "Unknown";
@@ -37,13 +40,87 @@ const initialFilters = {
   run_id: "",
 };
 
+function normalizeAgeInput(value) {
+  const rawValue = String(value).trim();
+  if (!rawValue) return "";
+  if (rawValue.startsWith("-")) return String(MIN_AGE);
+
+  const digitMatch = rawValue.match(/\d+/);
+  if (!digitMatch) return "";
+
+  const age = Number(digitMatch[0].slice(0, 3));
+  if (!Number.isFinite(age)) return "";
+  return String(Math.min(MAX_AGE, Math.max(MIN_AGE, age)));
+}
+
+function preventFunnyAgeKeys(event) {
+  if (BLOCKED_AGE_KEYS.has(event.key)) {
+    event.preventDefault();
+  }
+}
+
+const emptySummary = {
+  total_analyzed: 0,
+  males: 0,
+  females: 0,
+  unknown: 0,
+  minors: 0,
+};
+
+function DemographicsSummary({ summary }) {
+  const items = [
+    { label: "Males", value: summary.males },
+    { label: "Females", value: summary.females },
+    { label: "Unknown", value: summary.unknown },
+  ];
+
+  return (
+    <section className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
+      <div className="grid gap-4 lg:grid-cols-[minmax(230px,0.8fr)_1.2fr] lg:items-stretch">
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4">
+          <div className="text-sm font-bold uppercase tracking-wide text-slate-400">Total Analyzed</div>
+          <div className="mt-1 text-6xl font-bold leading-none text-red-500">{summary.total_analyzed}</div>
+          <p className="mt-2 text-sm text-slate-400">Run-level baseline from uploaded person crops.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {items.map((item) => (
+            <div key={item.label} className="rounded-lg border border-slate-800 bg-slate-950 p-3">
+              <div className="text-3xl font-black text-white">{item.value}</div>
+              <div className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-500">{item.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mt-3 rounded-lg border border-amber-400/50 bg-amber-500/10 p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-400/15 text-amber-200">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-3xl font-black text-white">{summary.minors}</div>
+            <div className="text-xs font-bold uppercase tracking-wide text-amber-200">
+              Minors (&lt;18) overlapping demographic flag
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function AssistanceView({ cameras = [] }) {
   const [filters, setFilters] = useState(initialFilters);
   const [observations, setObservations] = useState([]);
+  const [summary, setSummary] = useState(emptySummary);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [summaryError, setSummaryError] = useState("");
 
   const queryUrl = useMemo(() => withQuery(endpoints.observations, filters), [filters]);
+  const summaryUrl = useMemo(
+    () => withQuery(endpoints.observationsSummary, { run_id: filters.run_id }),
+    [filters.run_id],
+  );
 
   async function loadObservations() {
     try {
@@ -82,8 +159,49 @@ export default function AssistanceView({ cameras = [] }) {
     };
   }, [queryUrl]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadSummary() {
+      try {
+        const data = await fetchJson(summaryUrl);
+        if (!isMounted) return;
+        setSummary({ ...emptySummary, ...(data || {}) });
+        setSummaryError("");
+      } catch (nextError) {
+        if (!isMounted) return;
+        setSummary(emptySummary);
+        setSummaryError(nextError instanceof Error ? nextError.message : "Could not load summary.");
+      }
+    }
+
+    loadSummary();
+    return () => {
+      isMounted = false;
+    };
+  }, [summaryUrl]);
+
   function updateFilter(key, value) {
     setFilters((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateAgeFilter(key, value) {
+    const normalizedAge = normalizeAgeInput(value);
+    setFilters((current) => {
+      const next = { ...current, [key]: normalizedAge };
+      const minAge = next.min_age === "" ? null : Number(next.min_age);
+      const maxAge = next.max_age === "" ? null : Number(next.max_age);
+
+      if (minAge !== null && maxAge !== null && minAge > maxAge) {
+        if (key === "min_age") {
+          next.max_age = next.min_age;
+        } else {
+          next.min_age = next.max_age;
+        }
+      }
+
+      return next;
+    });
   }
 
   async function clearDemoLogs() {
@@ -93,7 +211,9 @@ export default function AssistanceView({ cameras = [] }) {
     try {
       await fetchJson(endpoints.observations, { method: "DELETE" });
       setObservations([]);
+      setSummary(emptySummary);
       setError("");
+      setSummaryError("");
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Could not clear observations.");
     }
@@ -101,6 +221,13 @@ export default function AssistanceView({ cameras = [] }) {
 
   return (
     <section className="grid gap-5">
+      <DemographicsSummary summary={summary} />
+      {summaryError ? (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-bold text-amber-100">
+          {summaryError}
+        </div>
+      ) : null}
+
       <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -152,11 +279,13 @@ export default function AssistanceView({ cameras = [] }) {
           <label className="grid gap-1 text-sm">
             <span className="font-bold text-slate-300">Min Age</span>
             <input
-              type="number"
-              min="0"
-              max="120"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={3}
               value={filters.min_age}
-              onChange={(event) => updateFilter("min_age", event.target.value)}
+              onKeyDown={preventFunnyAgeKeys}
+              onChange={(event) => updateAgeFilter("min_age", event.target.value)}
               placeholder="0"
               className="h-10 rounded-md border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-300"
             />
@@ -165,11 +294,13 @@ export default function AssistanceView({ cameras = [] }) {
           <label className="grid gap-1 text-sm">
             <span className="font-bold text-slate-300">Max Age</span>
             <input
-              type="number"
-              min="0"
-              max="120"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={3}
               value={filters.max_age}
-              onChange={(event) => updateFilter("max_age", event.target.value)}
+              onKeyDown={preventFunnyAgeKeys}
+              onChange={(event) => updateAgeFilter("max_age", event.target.value)}
               placeholder="120"
               className="h-10 rounded-md border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-300"
             />
@@ -202,6 +333,9 @@ export default function AssistanceView({ cameras = [] }) {
             />
           </label>
         </div>
+        <p className="mt-3 text-xs text-slate-500">
+          Age filters accept whole numbers from 0 to 120. Min and max stay aligned automatically.
+        </p>
       </div>
 
       {error ? (

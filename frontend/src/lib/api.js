@@ -10,6 +10,7 @@ export const endpoints = {
   metrics: `${API_URL}/api/metrics`,
   alerts: `${API_URL}/api/alerts`,
   observations: `${API_URL}/api/observations`,
+  observationsSummary: `${API_URL}/api/observations/summary`,
 };
 
 export function resolveApiUrl(path) {

@@ -87,6 +87,7 @@ POST /api/metrics
 GET  /api/alerts?run_id=
 POST /api/alerts
 GET  /api/observations?gender=&min_age=&max_age=&camera_id=&run_id=
+GET  /api/observations/summary?gender=&min_age=&max_age=&camera_id=&run_id=
 POST /api/observations
 DELETE /api/observations
 ```
@@ -106,3 +107,20 @@ curl.exe -X POST "http://localhost:8000/api/observations" `
   -F "age_confidence=0.88" `
   -F "gender_confidence=0.94"
 ```
+
+## Seed Demo Data
+
+To test the dashboard without the external MiVOLO pipeline:
+
+```powershell
+cd "C:\Users\aveng\Documents\Codex\CAG (MP)\backend"
+.\.venv\Scripts\python.exe seed_demo_data.py --reset-observations
+```
+
+This creates generated person-crop placeholders, metrics, and alerts using:
+
+```text
+run_id = demo_assistance_001
+```
+
+Restart or refresh the frontend, then open the **Passenger Assistance** tab. Use the run ID filter above if you want to see only seeded records.

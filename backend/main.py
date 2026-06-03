@@ -14,7 +14,14 @@ import crud
 from camera import CameraStreamer, camera_manager, mjpeg_frame_generator
 from config import settings
 from database import get_db, init_db
-from models import MetricLogCreate, MetricLogRead, PassengerObservationRead, SystemAlertCreate, SystemAlertRead
+from models import (
+    MetricLogCreate,
+    MetricLogRead,
+    PassengerObservationRead,
+    PassengerObservationSummary,
+    SystemAlertCreate,
+    SystemAlertRead,
+)
 from observation_storage import (
     PUBLIC_UPLOAD_PREFIX,
     UPLOAD_DIR,
@@ -113,6 +120,14 @@ def get_alerts(db: DbSession, run_id: str | None = Query(default=None)) -> list[
 @app.post("/api/alerts", response_model=SystemAlertRead, status_code=201)
 def post_alert(payload: SystemAlertCreate, db: DbSession) -> SystemAlertRead:
     return crud.create_system_alert(db, payload)
+
+
+@app.get("/api/observations/summary", response_model=PassengerObservationSummary)
+def get_observation_summary(
+    db: DbSession,
+    run_id: str | None = Query(default=None),
+) -> PassengerObservationSummary:
+    return crud.get_observation_summary(db, run_id=run_id)
 
 
 @app.get("/api/observations", response_model=list[PassengerObservationRead])

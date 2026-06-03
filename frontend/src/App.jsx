@@ -1,16 +1,15 @@
 import { useEffect, useState } from "react";
 import AssistanceView from "./components/AssistanceView.jsx";
-import AlertsPanel from "./components/AlertsPanel.jsx";
 import DashboardLayout from "./components/DashboardLayout.jsx";
-import MetricsPanel from "./components/MetricsPanel.jsx";
-import SystemStatus from "./components/SystemStatus.jsx";
+import OperationsSidebarTabs from "./components/OperationsSidebarTabs.jsx";
+import OperationsStatusPills from "./components/OperationsStatusPills.jsx";
 import VideoPlayer from "./components/VideoPlayer.jsx";
 import { endpoints, fetchJson } from "./lib/api.js";
 
 const POLL_MS = 3000;
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState("operations");
+  const [activeTab, setActiveTab] = useState("assistance");
   const [cameras, setCameras] = useState([]);
   const [selectedCameraId, setSelectedCameraId] = useState(null);
   const [metrics, setMetrics] = useState([]);
@@ -72,22 +71,21 @@ export default function App() {
       status={selectedCamera}
       sidebar={
         activeTab === "operations" ? (
-          <>
-            <SystemStatus apiOnline={apiOnline} cameras={cameras} status={selectedCamera} />
-            <MetricsPanel metrics={metrics} />
-            <AlertsPanel alerts={alerts} />
-          </>
+          <OperationsSidebarTabs metrics={metrics} alerts={alerts} />
         ) : null
       }
     >
       {activeTab === "operations" ? (
-        <VideoPlayer
-          apiOnline={apiOnline}
-          cameras={cameras}
-          camera={selectedCamera}
-          selectedCameraId={selectedCamera?.camera_id || selectedCameraId}
-          onSelectCamera={setSelectedCameraId}
-        />
+        <section className="grid gap-4">
+          <OperationsStatusPills apiOnline={apiOnline} cameras={cameras} status={selectedCamera} />
+          <VideoPlayer
+            apiOnline={apiOnline}
+            cameras={cameras}
+            camera={selectedCamera}
+            selectedCameraId={selectedCamera?.camera_id || selectedCameraId}
+            onSelectCamera={setSelectedCameraId}
+          />
+        </section>
       ) : (
         <AssistanceView cameras={cameras} />
       )}

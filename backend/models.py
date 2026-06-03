@@ -100,3 +100,11 @@ class PassengerObservationRead(BaseModel):
     image_url: str
 
     model_config = {"from_attributes": True}
+
+
+class PassengerObservationSummary(BaseModel):
+    total_analyzed: int = 0
+    males: int = 0
+    females: int = 0
+    unknown: int = 0
+    minors: int = 0

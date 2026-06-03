@@ -2,15 +2,17 @@
 
 ## Direction
 
-The V1 dashboard should use a dark operational monitoring style:
+The V1 dashboard supports dark and light operational monitoring styles:
 
-- dark slate background
+- dark mode uses a dark slate background
+- light mode uses a white/light grey page background with dark readable text
 - high-contrast live video panel
 - compact right sidebar
 - compact camera switcher inside the video panel when multiple cameras exist
 - separate Passenger Assistance tab for filtered age/gender observation cards
 - color only for status, alert severity, and connection state
 - no landing-page or marketing layout
+- theme controls must visibly contrast in both modes; light-mode icons need dark outlines/text
 
 ## Layout
 
@@ -18,16 +20,17 @@ Primary hierarchy:
 
 1. Header with dashboard name and overall camera connection state.
 2. Tab navigation for Operations and Passenger Assistance.
-3. Operations tab: large live MJPEG video panel plus compact status sidebar.
-4. Assistance tab: filters first, then compact person crop cards.
+3. Operations tab: compact status pill row, large live MJPEG video panel, and Metrics/Alerts sidebar mini-tabs.
+4. Assistance tab: demographics totals first, filters second, then compact person crop cards.
 
 ## Component Rules
 
 - `VideoPlayer` owns the selected camera stream display and the camera selector.
-- `SystemStatus` shows backend, selected camera health, and all-camera online count.
+- `OperationsStatusPills` shows backend, selected camera health, all-camera count, and resolution above the video.
+- `OperationsSidebarTabs` toggles between metrics and alerts in the right sidebar.
 - `MetricsPanel` stays compact with latest 10 rows.
 - `AlertsPanel` stays compact with latest 5 alerts and severity indicators.
-- `AssistanceView` displays model-provided demographic observations as an assistance filter, not identification.
+- `AssistanceView` displays backend-powered demographic totals and model-provided observation cards as an assistance filter, not identification.
 - Offline video state must follow the selected camera status from `/api/cameras`, not image error events.
 
 ## Update Rule

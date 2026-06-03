@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import delete, desc, select
+from sqlalchemy import case, delete, desc, func, select
 from sqlalchemy.orm import Session
 
 from models import MetricLog, MetricLogCreate, PassengerObservation, SystemAlert, SystemAlertCreate
@@ -123,6 +123,44 @@ def get_latest_observations(
 
     statement = statement.order_by(desc(PassengerObservation.timestamp), desc(PassengerObservation.id)).limit(limit)
     return list(db.scalars(statement).all())
+
+
+def get_observation_summary(
+    db: Session,
+    *,
+    run_id: str | None = None,
+) -> dict[str, int]:
+    statement = select(
+        func.count(PassengerObservation.id).label("total_analyzed"),
+        func.coalesce(
+            func.sum(case((PassengerObservation.gender == "male", 1), else_=0)),
+            0,
+        ).label("males"),
+        func.coalesce(
+            func.sum(case((PassengerObservation.gender == "female", 1), else_=0)),
+            0,
+        ).label("females"),
+        func.coalesce(
+            func.sum(case((PassengerObservation.gender.not_in(["male", "female"]), 1), else_=0)),
+            0,
+        ).label("unknown"),
+        func.coalesce(
+            func.sum(case((PassengerObservation.age < 18, 1), else_=0)),
+            0,
+        ).label("minors"),
+    )
+
+    if run_id:
+        statement = statement.where(PassengerObservation.run_id == run_id)
+
+    row = db.execute(statement).one()
+    return {
+        "total_analyzed": int(row.total_analyzed or 0),
+        "males": int(row.males or 0),
+        "females": int(row.females or 0),
+        "unknown": int(row.unknown or 0),
+        "minors": int(row.minors or 0),
+    }
 
 
 def clear_passenger_observations(db: Session) -> int:
