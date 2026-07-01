@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
@@ -62,6 +62,13 @@ app.add_middleware(
 
 ensure_upload_dir()
 app.mount(PUBLIC_UPLOAD_PREFIX, StaticFiles(directory=UPLOAD_DIR), name="observation-images")
+
+FRONTEND_DIST_PATH = settings.frontend_dist_path
+FRONTEND_INDEX_PATH = FRONTEND_DIST_PATH / "index.html"
+FRONTEND_ASSETS_PATH = FRONTEND_DIST_PATH / "assets"
+
+if FRONTEND_ASSETS_PATH.exists():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_ASSETS_PATH), name="frontend-assets")
 
 
 DbSession = Annotated[Session, Depends(get_db)]
@@ -227,3 +234,26 @@ def delete_observations(db: DbSession) -> dict[str, int]:
     deleted_rows = crud.clear_passenger_observations(db)
     deleted_images = clear_observation_images()
     return {"deleted_rows": deleted_rows, "deleted_images": deleted_images}
+
+
+def serve_frontend_index() -> FileResponse:
+    if not FRONTEND_INDEX_PATH.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Frontend build not found. Run `npm run build` in the frontend folder.",
+        )
+    return FileResponse(FRONTEND_INDEX_PATH)
+
+
+@app.get("/", include_in_schema=False)
+def frontend_root() -> FileResponse:
+    return serve_frontend_index()
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+def frontend_spa_fallback(full_path: str) -> FileResponse:
+    reserved_paths = {"api", "assets", "health", "uploads"}
+    reserved_prefixes = ("api/", "uploads/", "assets/")
+    if full_path in reserved_paths or full_path.startswith(reserved_prefixes):
+        raise HTTPException(status_code=404, detail="Not found")
+    return serve_frontend_index()

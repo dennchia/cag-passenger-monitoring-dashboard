@@ -1,37 +1,45 @@
-export const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
+export const API_URL = (import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "");
+
+function apiUrl(path) {
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path)) return path;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return API_URL ? `${API_URL}${normalizedPath}` : normalizedPath;
+}
 
 export const endpoints = {
-  health: `${API_URL}/health`,
-  status: `${API_URL}/api/status`,
-  cameras: `${API_URL}/api/cameras`,
-  stream: `${API_URL}/api/stream`,
-  cameraStatus: (cameraId) => `${API_URL}/api/cameras/${encodeURIComponent(cameraId)}/status`,
-  cameraStream: (cameraId) => `${API_URL}/api/cameras/${encodeURIComponent(cameraId)}/stream`,
-  metrics: `${API_URL}/api/metrics`,
-  metricTrends: `${API_URL}/api/metrics/trends`,
-  zoneStatus: `${API_URL}/api/zones/status`,
-  tactical: `${API_URL}/api/tactical`,
+  health: apiUrl("/health"),
+  status: apiUrl("/api/status"),
+  cameras: apiUrl("/api/cameras"),
+  stream: apiUrl("/api/stream"),
+  cameraStatus: (cameraId) => apiUrl(`/api/cameras/${encodeURIComponent(cameraId)}/status`),
+  cameraStream: (cameraId) => apiUrl(`/api/cameras/${encodeURIComponent(cameraId)}/stream`),
+  metrics: apiUrl("/api/metrics"),
+  metricTrends: apiUrl("/api/metrics/trends"),
+  zoneStatus: apiUrl("/api/zones/status"),
+  tactical: apiUrl("/api/tactical"),
   tacticalLatest: (cameraId, runId) =>
-    withQuery(`${API_URL}/api/tactical/latest`, { camera_id: cameraId, run_id: runId }),
-  alerts: `${API_URL}/api/alerts`,
-  observations: `${API_URL}/api/observations`,
-  observationsSummary: `${API_URL}/api/observations/summary`,
+    withQuery(apiUrl("/api/tactical/latest"), { camera_id: cameraId, run_id: runId }),
+  alerts: apiUrl("/api/alerts"),
+  observations: apiUrl("/api/observations"),
+  observationsSummary: apiUrl("/api/observations/summary"),
 };
 
 export function resolveApiUrl(path) {
   if (!path) return "";
   if (/^https?:\/\//i.test(path)) return path;
-  return `${API_URL}${path.startsWith("/") ? path : `/${path}`}`;
+  return apiUrl(path);
 }
 
 export function withQuery(url, params = {}) {
-  const nextUrl = new URL(url);
+  const isAbsoluteUrl = /^https?:\/\//i.test(url);
+  const nextUrl = new URL(url, isAbsoluteUrl ? undefined : window.location.origin);
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
       nextUrl.searchParams.set(key, value);
     }
   });
-  return nextUrl.toString();
+  return isAbsoluteUrl || API_URL ? nextUrl.toString() : `${nextUrl.pathname}${nextUrl.search}`;
 }
 
 export async function fetchJson(url, options = {}) {

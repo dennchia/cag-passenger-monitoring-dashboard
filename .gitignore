@@ -1,17 +1,53 @@
+# Python
 __pycache__/
 *.py[cod]
 .venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Vite
 node_modules/
 dist/
+frontend/dist/
+*.tsbuildinfo
+
+# Logs
+*.log
 streamlit.out.log
 streamlit.err.log
-*.log
+
+# Streamlit archive/runtime
 .streamlit/
+
+# Local environment files and secrets
 .env
+.env.*
 .env.local
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+
+# Local databases
 *.db
+*.sqlite
+*.sqlite3
 *.db-wal
 *.db-shm
+
+# Model weights and generated ML assets
 *.pt
+*.onnx
+*.engine
+
+# Uploaded/generated runtime files
 backend/uploads/
+uploads/
 outputs/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

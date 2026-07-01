@@ -34,11 +34,11 @@ PRIMARY_CAMERA_ID=cam_1
 ZONE_CAPACITIES_JSON={"cam_1":150,"cam_2":150}
 ```
 
-For teammate CV telemetry over MQTT, run a broker such as Mosquitto on the strong PC and configure:
+For teammate CV telemetry over MQTT, run a broker such as Mosquitto on the machine acting as the server. In centralised laptop-server testing, this is your laptop:
 
 ```text
 MQTT_ENABLED=true
-MQTT_HOST=192.168.50.xxx
+MQTT_HOST=localhost
 MQTT_PORT=1883
 MQTT_TOPIC_METRICS=cag/metrics
 MQTT_TOPIC_TACTICAL=cag/tactical
@@ -82,6 +82,8 @@ Open:
 http://localhost:5173
 ```
 
+This is development mode. The React app runs through Vite and calls the backend using `VITE_API_URL`.
+
 ## One-Command Demo Start
 
 After installing backend and frontend dependencies once:
@@ -89,6 +91,70 @@ After installing backend and frontend dependencies once:
 ```powershell
 .\start.ps1
 ```
+
+This starts the backend and Vite frontend separately for development.
+
+## Centralised Server Mode
+
+For deployment testing, run the dashboard as a single server. Your laptop can act as the temporary server first:
+
+```text
+Your laptop:
+- Mosquitto MQTT broker
+- FastAPI backend
+- SQLite database
+- uploaded crop images
+- compiled React dashboard
+
+Friend strong PC:
+- CV pipeline publishes MQTT to your laptop IP
+
+Staff/test devices:
+- browser only
+```
+
+Run:
+
+```powershell
+.\start_server.ps1
+```
+
+The script builds `frontend/dist` and starts FastAPI on:
+
+```text
+http://localhost:8000
+```
+
+Other devices on the same network should open the network URL printed by the script, for example:
+
+```text
+http://192.168.50.197:8000
+```
+
+In server mode, the frontend uses same-origin API paths so viewer devices call the same server that served the dashboard. `start_server.ps1` forces this for the production build even if `frontend/.env.local` exists for development.
+
+If you build manually for server mode, clear `VITE_API_URL` first:
+
+```powershell
+cd "C:\Users\aveng\Documents\Codex\CAG (MP)\frontend"
+$env:VITE_API_URL=" "
+& "C:\Program Files\nodejs\npm.cmd" run build
+```
+
+For temporary laptop-server MQTT testing:
+
+```text
+Backend .env on your laptop:
+MQTT_ENABLED=true
+MQTT_HOST=localhost
+MQTT_PORT=1883
+
+Friend CV script on strong PC:
+--mqtt-broker YOUR_LAPTOP_IP
+--mqtt-port 1883
+```
+
+Staff devices only need access to port `8000`. The CV publisher needs access to MQTT port `1883`.
 
 ## API
 
