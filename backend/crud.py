@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import case, delete, desc, func, select
@@ -24,6 +24,40 @@ def _zone_counts_to_text(value: Any | None) -> str | None:
     return json.dumps(value, separators=(",", ":"))
 
 
+def _parse_zone_counts(value: str | None) -> dict[str, Any]:
+    if not value:
+        return {}
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _coerce_zone_count(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return max(0, int(value))
+    if isinstance(value, dict):
+        nested_counts = [_coerce_zone_count(item) for item in value.values()]
+        valid_counts = [count for count in nested_counts if count is not None]
+        return sum(valid_counts) if valid_counts else None
+    return None
+
+
+def _capacity_status(count: int, capacity: int | None) -> tuple[float | None, str]:
+    if not capacity or capacity <= 0:
+        return None, "unknown"
+
+    percent_used = round((count / capacity) * 100, 1)
+    if percent_used >= 85:
+        return percent_used, "critical"
+    if percent_used >= 60:
+        return percent_used, "warning"
+    return percent_used, "safe"
+
+
 def create_metric_log(db: Session, payload: MetricLogCreate) -> MetricLog:
     metric = MetricLog(
         timestamp=_timestamp_or_now(payload.timestamp),
@@ -44,6 +78,62 @@ def get_latest_metrics(db: Session, run_id: str | None = None, limit: int = 10) 
         statement = statement.where(MetricLog.run_id == run_id)
     statement = statement.order_by(desc(MetricLog.timestamp), desc(MetricLog.id)).limit(limit)
     return list(db.scalars(statement).all())
+
+
+def get_metric_trends(db: Session, run_id: str | None = None, minutes: int = 60) -> list[MetricLog]:
+    selected_run_id = run_id
+    if not selected_run_id:
+        latest_run_statement = select(MetricLog.run_id).order_by(desc(MetricLog.timestamp), desc(MetricLog.id)).limit(1)
+        selected_run_id = db.scalar(latest_run_statement)
+        if not selected_run_id:
+            return []
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+    statement = (
+        select(MetricLog)
+        .where(MetricLog.run_id == selected_run_id)
+        .where(MetricLog.timestamp >= cutoff)
+        .order_by(MetricLog.timestamp, MetricLog.id)
+    )
+    return list(db.scalars(statement).all())
+
+
+def get_zone_status(
+    db: Session,
+    *,
+    capacities: dict[str, int],
+    run_id: str | None = None,
+) -> list[dict[str, Any]]:
+    statement = select(MetricLog)
+    if run_id:
+        statement = statement.where(MetricLog.run_id == run_id)
+    statement = statement.order_by(desc(MetricLog.timestamp), desc(MetricLog.id)).limit(1)
+
+    latest_metric = db.scalars(statement).first()
+    if latest_metric is None:
+        return []
+
+    zone_counts = _parse_zone_counts(latest_metric.zone_counts)
+    statuses: list[dict[str, Any]] = []
+
+    for zone_id in sorted(zone_counts):
+        count = _coerce_zone_count(zone_counts[zone_id])
+        if count is None:
+            continue
+
+        capacity = capacities.get(str(zone_id))
+        percent_used, status = _capacity_status(count, capacity)
+        statuses.append(
+            {
+                "zone_id": str(zone_id),
+                "count": count,
+                "capacity": capacity,
+                "percent_used": percent_used,
+                "status": status,
+            }
+        )
+
+    return statuses
 
 
 def create_system_alert(db: Session, payload: SystemAlertCreate) -> SystemAlert:

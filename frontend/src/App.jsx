@@ -1,18 +1,25 @@
 import { useEffect, useState } from "react";
 import AssistanceView from "./components/AssistanceView.jsx";
 import DashboardLayout from "./components/DashboardLayout.jsx";
+import MetricTrendSparkline from "./components/MetricTrendSparkline.jsx";
 import OperationsSidebarTabs from "./components/OperationsSidebarTabs.jsx";
 import OperationsStatusPills from "./components/OperationsStatusPills.jsx";
+import TacticalMap from "./components/TacticalMap.jsx";
 import VideoPlayer from "./components/VideoPlayer.jsx";
+import ZoneCapacityBars from "./components/ZoneCapacityBars.jsx";
 import { endpoints, fetchJson } from "./lib/api.js";
 
 const POLL_MS = 3000;
+const TACTICAL_POLL_MS = 1000;
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("assistance");
   const [cameras, setCameras] = useState([]);
   const [selectedCameraId, setSelectedCameraId] = useState(null);
   const [metrics, setMetrics] = useState([]);
+  const [metricTrend, setMetricTrend] = useState([]);
+  const [tacticalState, setTacticalState] = useState(null);
+  const [zoneStatus, setZoneStatus] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [apiOnline, setApiOnline] = useState(false);
 
@@ -21,9 +28,11 @@ export default function App() {
 
     async function poll() {
       try {
-        const [nextCameras, nextMetrics, nextAlerts] = await Promise.all([
+        const [nextCameras, nextMetrics, nextMetricTrend, nextZoneStatus, nextAlerts] = await Promise.all([
           fetchJson(endpoints.cameras),
           fetchJson(endpoints.metrics),
+          fetchJson(endpoints.metricTrends),
+          fetchJson(endpoints.zoneStatus),
           fetchJson(endpoints.alerts),
         ]);
 
@@ -37,6 +46,8 @@ export default function App() {
           return normalizedCameras[0]?.camera_id || current;
         });
         setMetrics(Array.isArray(nextMetrics) ? nextMetrics : []);
+        setMetricTrend(Array.isArray(nextMetricTrend) ? nextMetricTrend : []);
+        setZoneStatus(Array.isArray(nextZoneStatus) ? nextZoneStatus : []);
         setAlerts(Array.isArray(nextAlerts) ? nextAlerts : []);
         setApiOnline(true);
       } catch (error) {
@@ -49,6 +60,8 @@ export default function App() {
             last_error: error instanceof Error ? error.message : "Backend unavailable",
           })),
         );
+        setMetricTrend([]);
+        setZoneStatus([]);
       }
     }
 
@@ -62,6 +75,39 @@ export default function App() {
 
   const selectedCamera =
     cameras.find((camera) => camera.camera_id === selectedCameraId) || cameras[0] || null;
+  const tacticalCameraId = selectedCamera?.camera_id || selectedCameraId;
+
+  useEffect(() => {
+    if (activeTab !== "operations" || !tacticalCameraId) {
+      return undefined;
+    }
+
+    let isMounted = true;
+    setTacticalState(null);
+
+    async function pollTactical() {
+      try {
+        const nextTacticalState = await fetchJson(endpoints.tacticalLatest(tacticalCameraId));
+        if (!isMounted) return;
+        setTacticalState(nextTacticalState);
+      } catch (error) {
+        if (!isMounted) return;
+        setTacticalState((current) => ({
+          ...(current || {}),
+          camera_id: tacticalCameraId,
+          has_data: Boolean(current?.has_data),
+          stale: true,
+        }));
+      }
+    }
+
+    pollTactical();
+    const interval = window.setInterval(pollTactical, TACTICAL_POLL_MS);
+    return () => {
+      isMounted = false;
+      window.clearInterval(interval);
+    };
+  }, [activeTab, tacticalCameraId]);
 
   return (
     <DashboardLayout
@@ -78,6 +124,13 @@ export default function App() {
       {activeTab === "operations" ? (
         <section className="grid gap-4">
           <OperationsStatusPills apiOnline={apiOnline} cameras={cameras} status={selectedCamera} />
+          <div className="grid gap-4 2xl:grid-cols-[minmax(420px,0.95fr)_minmax(0,1.05fr)]">
+            <TacticalMap state={tacticalState} cameraId={tacticalCameraId} apiOnline={apiOnline} />
+            <div className="grid content-start gap-4">
+              <ZoneCapacityBars zones={zoneStatus} />
+              <MetricTrendSparkline points={metricTrend} />
+            </div>
+          </div>
           <VideoPlayer
             apiOnline={apiOnline}
             cameras={cameras}

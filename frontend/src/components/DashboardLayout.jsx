@@ -18,7 +18,7 @@ export default function DashboardLayout({ children, sidebar, status, cameras = [
           <div>
             <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-cyan-200">
               <MonitorDot className="h-3.5 w-3.5" />
-              Passenger Monitoring V1
+              Passenger Monitoring V1.5
             </div>
             <h1 className="text-3xl font-black tracking-tight text-white lg:text-4xl">
               CAG Live Operations Dashboard

@@ -14,3 +14,4 @@ streamlit.err.log
 *.db-shm
 *.pt
 backend/uploads/
+outputs/

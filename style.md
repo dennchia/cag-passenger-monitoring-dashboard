@@ -9,6 +9,7 @@ The V1 dashboard supports dark and light operational monitoring styles:
 - high-contrast live video panel
 - compact right sidebar
 - compact camera switcher inside the video panel when multiple cameras exist
+- schematic tactical floor map for live X/Y person dots from the CV homography pipeline
 - separate Passenger Assistance tab for filtered age/gender observation cards
 - color only for status, alert severity, and connection state
 - no landing-page or marketing layout
@@ -20,13 +21,16 @@ Primary hierarchy:
 
 1. Header with dashboard name and overall camera connection state.
 2. Tab navigation for Operations and Passenger Assistance.
-3. Operations tab: compact status pill row, large live MJPEG video panel, and Metrics/Alerts sidebar mini-tabs.
+3. Operations tab: compact status pill row, tactical floor map, zone capacity bars, 60-minute trend sparkline, large live MJPEG video panel, and Metrics/Alerts sidebar mini-tabs.
 4. Assistance tab: demographics totals first, filters second, then compact person crop cards.
 
 ## Component Rules
 
 - `VideoPlayer` owns the selected camera stream display and the camera selector.
 - `OperationsStatusPills` shows backend, selected camera health, all-camera count, and resolution above the video.
+- `TacticalMap` shows latest camera-keyed X/Y positions as dots on a schematic floor map and marks stale data clearly.
+- `ZoneCapacityBars` shows camera-keyed capacity pressure between the status pills and the live video.
+- `MetricTrendSparkline` shows a compact trailing passenger-count trend beside the zone capacity panel.
 - `OperationsSidebarTabs` toggles between metrics and alerts in the right sidebar.
 - `MetricsPanel` stays compact with latest 10 rows.
 - `AlertsPanel` stays compact with latest 5 alerts and severity indicators.

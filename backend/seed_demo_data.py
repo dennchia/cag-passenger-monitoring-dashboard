@@ -80,13 +80,15 @@ def seed(reset_observations: bool) -> None:
             )
 
         for offset, count in enumerate([82, 96, 113, 121, 128]):
+            cam_1_count = count // 2 + offset
+            cam_2_count = count - cam_1_count
             crud.create_metric_log(
                 db,
                 MetricLogCreate(
                     timestamp=now - timedelta(minutes=(4 - offset) * 3),
                     run_id=DEMO_RUN_ID,
                     passenger_count=count,
-                    zone_counts={"A": 41 + offset, "B": 28 + offset, "C": 13 + offset},
+                    zone_counts={"cam_1": cam_1_count, "cam_2": cam_2_count},
                     camera_online_count=2,
                 ),
             )

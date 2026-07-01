@@ -8,6 +8,11 @@ export const endpoints = {
   cameraStatus: (cameraId) => `${API_URL}/api/cameras/${encodeURIComponent(cameraId)}/status`,
   cameraStream: (cameraId) => `${API_URL}/api/cameras/${encodeURIComponent(cameraId)}/stream`,
   metrics: `${API_URL}/api/metrics`,
+  metricTrends: `${API_URL}/api/metrics/trends`,
+  zoneStatus: `${API_URL}/api/zones/status`,
+  tactical: `${API_URL}/api/tactical`,
+  tacticalLatest: (cameraId, runId) =>
+    withQuery(`${API_URL}/api/tactical/latest`, { camera_id: cameraId, run_id: runId }),
   alerts: `${API_URL}/api/alerts`,
   observations: `${API_URL}/api/observations`,
   observationsSummary: `${API_URL}/api/observations/summary`,

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -70,6 +70,14 @@ class MetricLogRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class MetricTrendPointRead(BaseModel):
+    timestamp: datetime
+    run_id: str
+    passenger_count: int
+
+    model_config = {"from_attributes": True}
+
+
 class SystemAlertCreate(BaseModel):
     severity: str = "info"
     message: str
@@ -108,3 +116,47 @@ class PassengerObservationSummary(BaseModel):
     females: int = 0
     unknown: int = 0
     minors: int = 0
+
+
+class ZoneStatusRead(BaseModel):
+    zone_id: str
+    count: int
+    capacity: int | None = None
+    percent_used: float | None = None
+    status: str
+
+
+class TacticalPosition(BaseModel):
+    x: float
+    y: float
+
+
+class TacticalStateCreate(BaseModel):
+    timestamp: datetime | None = None
+    camera_id: str = Field(min_length=1, max_length=80)
+    run_id: str = Field(default="default", max_length=80)
+    camera_source: str | None = None
+    people_count: int = Field(ge=0)
+    positions_cm: list[TacticalPosition] = Field(default_factory=list)
+    map_size_cm: int = Field(default=300, gt=0, le=10000)
+
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def parse_epoch_timestamp(cls, value):
+        if isinstance(value, (int, float)):
+            return datetime.fromtimestamp(value, timezone.utc)
+        return value
+
+
+class TacticalStateRead(BaseModel):
+    timestamp: datetime | None = None
+    received_at: datetime | None = None
+    camera_id: str | None = None
+    run_id: str | None = None
+    camera_source: str | None = None
+    people_count: int = 0
+    positions_cm: list[TacticalPosition] = Field(default_factory=list)
+    map_size_cm: int = 300
+    has_data: bool = False
+    stale: bool = True
+    age_seconds: float | None = None

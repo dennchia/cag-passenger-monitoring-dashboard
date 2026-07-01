@@ -1,11 +1,15 @@
-# CAG Passenger Monitoring Dashboard V1
+# CAG Passenger Monitoring Dashboard V1.5
 
 FastAPI + React migration for the Passenger Monitoring Dashboard.
 
-V1 focuses on:
+V1.5 focuses on:
 
 - stable multi-camera MJPEG camera streaming
 - SQLite-backed metrics and alerts
+- camera-keyed zone capacity status bars
+- historical passenger-count trend sparklines
+- tactical floor map dots from external CV telemetry
+- MQTT live telemetry ingestion
 - saved passenger assistance observations from an external age/gender pipeline
 - a compact dark React dashboard shell
 
@@ -27,6 +31,19 @@ For multiple cameras, set `CAMERA_URLS` in `backend/.env`:
 ```text
 CAMERA_URLS=cam_1=rtsp://username:password@192.168.50.192:554/Streaming/Channels/101,cam_2=rtsp://username:password@192.168.50.76:554/Streaming/Channels/101
 PRIMARY_CAMERA_ID=cam_1
+ZONE_CAPACITIES_JSON={"cam_1":150,"cam_2":150}
+```
+
+For teammate CV telemetry over MQTT, run a broker such as Mosquitto on the strong PC and configure:
+
+```text
+MQTT_ENABLED=true
+MQTT_HOST=192.168.50.xxx
+MQTT_PORT=1883
+MQTT_TOPIC_METRICS=cag/metrics
+MQTT_TOPIC_TACTICAL=cag/tactical
+MQTT_TOPIC_ALERTS=cag/alerts
+MQTT_METRIC_LOG_INTERVAL_SECONDS=1
 ```
 
 ## Backend
@@ -83,16 +100,30 @@ GET  /api/cameras
 GET  /api/cameras/{camera_id}/status
 GET  /api/cameras/{camera_id}/stream
 GET  /api/metrics?run_id=
+GET  /api/metrics/trends?run_id=&minutes=60
 POST /api/metrics
+GET  /api/zones/status?run_id=
+POST /api/tactical
+GET  /api/tactical/latest?camera_id=&run_id=
 GET  /api/alerts?run_id=
 POST /api/alerts
 GET  /api/observations?gender=&min_age=&max_age=&camera_id=&run_id=
-GET  /api/observations/summary?gender=&min_age=&max_age=&camera_id=&run_id=
+GET  /api/observations/summary?run_id=
 POST /api/observations
 DELETE /api/observations
 ```
 
 Metrics and alerts return latest global entries when `run_id` is omitted.
+
+MQTT topics carry lightweight live telemetry:
+
+```text
+cag/metrics   -> passenger_count, zone_counts, camera_online_count
+cag/tactical  -> people_count, positions_cm, map_size_cm
+cag/alerts    -> severity and message
+```
+
+Large person crop images still use HTTP multipart upload through `POST /api/observations`.
 
 Passenger observations are an assistance filter only. The dashboard stores model-provided age/gender estimates and person crop images from an external pipeline; it does not run MiVOLO, identify people, or perform face recognition.
 

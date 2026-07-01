@@ -17,10 +17,14 @@ from database import get_db, init_db
 from models import (
     MetricLogCreate,
     MetricLogRead,
+    MetricTrendPointRead,
     PassengerObservationRead,
     PassengerObservationSummary,
     SystemAlertCreate,
     SystemAlertRead,
+    TacticalStateCreate,
+    TacticalStateRead,
+    ZoneStatusRead,
 )
 from observation_storage import (
     PUBLIC_UPLOAD_PREFIX,
@@ -29,6 +33,8 @@ from observation_storage import (
     ensure_upload_dir,
     save_observation_image,
 )
+from mqtt_bridge import mqtt_bridge
+from tactical_state import tactical_store
 
 
 @asynccontextmanager
@@ -36,9 +42,11 @@ async def lifespan(app: FastAPI):
     init_db()
     ensure_upload_dir()
     camera_manager.start_all()
+    mqtt_bridge.start()
     try:
         yield
     finally:
+        mqtt_bridge.stop()
         camera_manager.stop_all()
 
 
@@ -107,9 +115,36 @@ def get_metrics(db: DbSession, run_id: str | None = Query(default=None)) -> list
     return crud.get_latest_metrics(db, run_id=run_id, limit=10)
 
 
+@app.get("/api/metrics/trends", response_model=list[MetricTrendPointRead])
+def get_metric_trends(
+    db: DbSession,
+    run_id: str | None = Query(default=None),
+    minutes: int = Query(default=60, ge=1, le=1440),
+) -> list[MetricTrendPointRead]:
+    return crud.get_metric_trends(db, run_id=run_id, minutes=minutes)
+
+
 @app.post("/api/metrics", response_model=MetricLogRead, status_code=201)
 def post_metric(payload: MetricLogCreate, db: DbSession) -> MetricLogRead:
     return crud.create_metric_log(db, payload)
+
+
+@app.get("/api/zones/status", response_model=list[ZoneStatusRead])
+def get_zone_status(db: DbSession, run_id: str | None = Query(default=None)) -> list[ZoneStatusRead]:
+    return crud.get_zone_status(db, capacities=settings.zone_capacity_map, run_id=run_id)
+
+
+@app.post("/api/tactical", response_model=TacticalStateRead, status_code=201)
+def post_tactical_state(payload: TacticalStateCreate) -> TacticalStateRead:
+    return tactical_store.update(payload)
+
+
+@app.get("/api/tactical/latest", response_model=TacticalStateRead)
+def get_latest_tactical_state(
+    camera_id: str | None = Query(default=None),
+    run_id: str | None = Query(default=None),
+) -> TacticalStateRead:
+    return tactical_store.latest(camera_id=camera_id, run_id=run_id)
 
 
 @app.get("/api/alerts", response_model=list[SystemAlertRead])
