@@ -45,6 +45,7 @@ streamlit.err.log
 backend/uploads/
 uploads/
 outputs/
+output/
 
 # OS/editor noise
 .DS_Store

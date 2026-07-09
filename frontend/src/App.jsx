@@ -7,6 +7,7 @@ import OperationsStatusPills from "./components/OperationsStatusPills.jsx";
 import TacticalMap from "./components/TacticalMap.jsx";
 import VideoPlayer from "./components/VideoPlayer.jsx";
 import ZoneCapacityBars from "./components/ZoneCapacityBars.jsx";
+import ExportShiftReportButton from "./features/reports/ExportShiftReportButton.jsx";
 import { endpoints, fetchJson } from "./lib/api.js";
 
 const POLL_MS = 3000;
@@ -76,6 +77,7 @@ export default function App() {
   const selectedCamera =
     cameras.find((camera) => camera.camera_id === selectedCameraId) || cameras[0] || null;
   const tacticalCameraId = selectedCamera?.camera_id || selectedCameraId;
+  const currentRunId = metrics[0]?.run_id || "";
 
   useEffect(() => {
     if (activeTab !== "operations" || !tacticalCameraId) {
@@ -123,7 +125,10 @@ export default function App() {
     >
       {activeTab === "operations" ? (
         <section className="grid gap-4">
-          <OperationsStatusPills apiOnline={apiOnline} cameras={cameras} status={selectedCamera} />
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-stretch">
+            <OperationsStatusPills apiOnline={apiOnline} cameras={cameras} status={selectedCamera} />
+            <ExportShiftReportButton runId={currentRunId} />
+          </div>
           <div className="grid gap-4 2xl:grid-cols-[minmax(420px,0.95fr)_minmax(0,1.05fr)]">
             <TacticalMap state={tacticalState} cameraId={tacticalCameraId} apiOnline={apiOnline} />
             <div className="grid content-start gap-4">

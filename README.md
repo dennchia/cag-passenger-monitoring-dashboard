@@ -169,6 +169,8 @@ GET  /api/metrics?run_id=
 GET  /api/metrics/trends?run_id=&minutes=60
 POST /api/metrics
 GET  /api/zones/status?run_id=
+GET  /api/reports/shift.xlsx?run_id=
+GET  /api/reports/shift.csv?run_id=
 POST /api/tactical
 GET  /api/tactical/latest?camera_id=&run_id=
 GET  /api/alerts?run_id=
@@ -180,6 +182,7 @@ DELETE /api/observations
 ```
 
 Metrics and alerts return latest global entries when `run_id` is omitted.
+Shift report exports use the latest 24 hours in Singapore time and sample the metric timeline every 5 minutes.
 
 MQTT topics carry lightweight live telemetry:
 

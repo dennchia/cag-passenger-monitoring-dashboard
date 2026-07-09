@@ -23,6 +23,8 @@ export const endpoints = {
   alerts: apiUrl("/api/alerts"),
   observations: apiUrl("/api/observations"),
   observationsSummary: apiUrl("/api/observations/summary"),
+  shiftReportCsv: (runId) => withQuery(apiUrl("/api/reports/shift.csv"), { run_id: runId }),
+  shiftReportXlsx: (runId) => withQuery(apiUrl("/api/reports/shift.xlsx"), { run_id: runId }),
 };
 
 export function resolveApiUrl(path) {

@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
@@ -34,6 +34,7 @@ from observation_storage import (
     save_observation_image,
 )
 from mqtt_bridge import mqtt_bridge
+from reports.shift_report import REPORT_MIME_TYPE, generate_shift_report_csv, generate_shift_report_xlsx
 from tactical_state import tactical_store
 
 
@@ -139,6 +140,26 @@ def post_metric(payload: MetricLogCreate, db: DbSession) -> MetricLogRead:
 @app.get("/api/zones/status", response_model=list[ZoneStatusRead])
 def get_zone_status(db: DbSession, run_id: str | None = Query(default=None)) -> list[ZoneStatusRead]:
     return crud.get_zone_status(db, capacities=settings.zone_capacity_map, run_id=run_id)
+
+
+@app.get("/api/reports/shift.csv")
+def get_shift_report_csv(db: DbSession, run_id: str | None = Query(default=None)) -> Response:
+    report = generate_shift_report_csv(db, capacities=settings.zone_capacity_map, run_id=run_id)
+    return Response(
+        content=report.content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{report.filename}"'},
+    )
+
+
+@app.get("/api/reports/shift.xlsx")
+def get_shift_report_xlsx(db: DbSession, run_id: str | None = Query(default=None)) -> Response:
+    report = generate_shift_report_xlsx(db, capacities=settings.zone_capacity_map, run_id=run_id)
+    return Response(
+        content=report.content,
+        media_type=REPORT_MIME_TYPE,
+        headers={"Content-Disposition": f'attachment; filename="{report.filename}"'},
+    )
 
 
 @app.post("/api/tactical", response_model=TacticalStateRead, status_code=201)
