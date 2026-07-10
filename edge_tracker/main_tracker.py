@@ -311,15 +311,43 @@ def create_mqtt_client(host, port, client_id="tactical-publisher", username=None
             client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION_2, client_id=client_id)
         except (AttributeError, TypeError):
             client = mqtt.Client(client_id=client_id)
+        client.reconnect_delay_set(min_delay=1, max_delay=10)
+        client.on_connect = lambda _client, _userdata, _flags, reason_code, *_args: print(
+            f"MQTT connected to {host}:{port} with result {reason_code}"
+        )
+        client.on_disconnect = lambda _client, _userdata, reason_code, *_args: print(
+            f"MQTT disconnected with result {reason_code}. Will try to reconnect before publishing."
+        )
         if username is not None and password is not None:
             client.username_pw_set(username, password)
         client.connect(host, port, keepalive=60)
         client.loop_start()
-        print(f"MQTT connected to {host}:{port}")
         return client
     except Exception as e:
         print(f"MQTT connection failed: {e}. Continuing without MQTT.")
         return None
+
+
+def ensure_mqtt_connected(client):
+    if client is None:
+        return False
+
+    try:
+        if hasattr(client, "is_connected") and client.is_connected():
+            return True
+        print("MQTT client is disconnected. Attempting reconnect...")
+        client.reconnect()
+        return True
+    except Exception as e:
+        print(f"MQTT reconnect failed: {e}")
+        return False
+
+
+def publish_mqtt_json(client, topic, payload, qos=1):
+    result = client.publish(topic, json.dumps(payload), qos=qos)
+    if result.rc != mqtt.MQTT_ERR_SUCCESS:
+        raise RuntimeError(f"publish to {topic} failed with rc={result.rc}")
+    return result
 
 
 def encode_image_to_base64(image, quality=80):
@@ -354,6 +382,7 @@ def parse_args():
     parser.add_argument("--missing-corner", choices=["top_left", "top_right", "bottom_right", "bottom_left"], default=None, help="Camera 1 hidden calibration corner. Click the other 3 corners plus 2 points on the hidden corner edges.")
     parser.add_argument("--missing-corner-2", choices=["top_left", "top_right", "bottom_right", "bottom_left"], default=None, help="Camera 2 hidden calibration corner.")
     parser.add_argument("--map-size-cm", type=int, default=300, help="Tactical map side length in centimeters.")
+    parser.add_argument("--outside-context-cm", type=int, default=700, help="Outside visible context range around the map, in centimeters.")
     parser.add_argument("--conf", type=float, default=0.4, help="YOLO confidence threshold.")
     parser.add_argument("--fusion-distance-cm", type=float, default=DEFAULT_FUSION_DISTANCE_CM, help="Maximum distance for two camera detections to count as the same person.")
     parser.add_argument("--pose-dropout-ttl-frames", type=int, default=DEFAULT_POSE_DROPOUT_TTL_FRAMES, help="Frames to keep a tracked person using last known foot point when pose landmarks disappear.")
@@ -630,30 +659,67 @@ def create_combined_tactical_map(fused_people, map_size_cm):
     return canvas
 
 
+def classify_map_point(point, map_size_cm, outside_context_cm):
+    try:
+        x, y = point
+        x = float(x)
+        y = float(y)
+        map_size_cm = float(map_size_cm)
+        outside_context_cm = float(outside_context_cm)
+    except (TypeError, ValueError):
+        return None
+
+    if not np.isfinite(x) or not np.isfinite(y):
+        return None
+    if 0 <= x <= map_size_cm and 0 <= y <= map_size_cm:
+        return "inside"
+    if -outside_context_cm <= x <= map_size_cm + outside_context_cm and -outside_context_cm <= y <= map_size_cm + outside_context_cm:
+        return "outside_visible"
+    return None
+
+
 def build_payloads(contexts, args, fused_people, combined_map=None):
-    total_count = len(fused_people)
+    map_size_cm = max(context.map_size_cm for context in contexts) if contexts else args.map_size_cm
+    inside_count = 0
+    outside_visible_count = 0
     positions = []
     zone_counts = {}
 
     for context in contexts:
-        zone_counts[context.camera_id] = len(context.tactical_points)
+        zone_counts[context.camera_id] = sum(
+            1
+            for point in context.tactical_points
+            if classify_map_point(point, context.map_size_cm, args.outside_context_cm) == "inside"
+        )
 
     for person_index, person in enumerate(fused_people, start=1):
         x, y = person["center"]
+        area = classify_map_point((x, y), map_size_cm, args.outside_context_cm)
+        if area is None:
+            continue
+        if area == "inside":
+            inside_count += 1
+        elif area == "outside_visible":
+            outside_visible_count += 1
         positions.append({
             "person_id": f"P{person_index}",
             "sources": person["sources"],
             "x": round(float(x), 1),
             "y": round(float(y), 1),
+            "area": area,
         })
 
     tactical_payload = {
         "timestamp": int(time.time()),
-        "camera_id": args.camera_id,
+        "camera_id": "fused",
         "run_id": args.run_id,
-        "people_count": total_count,
+        "people_count": inside_count,
+        "inside_count": inside_count,
+        "outside_visible_count": outside_visible_count,
+        "total_visible_count": inside_count + outside_visible_count,
         "positions_cm": positions,
-        "map_size_cm": args.map_size_cm,
+        "map_size_cm": map_size_cm,
+        "outside_context_cm": args.outside_context_cm,
         "zone_counts": zone_counts,
         "camera_online_count": sum(1 for context in contexts if context.cap.is_opened()),
     }
@@ -666,7 +732,7 @@ def build_payloads(contexts, args, fused_people, combined_map=None):
     metric_payload = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "run_id": args.run_id,
-        "passenger_count": total_count,
+        "passenger_count": inside_count,
         "zone_counts": zone_counts,
         "camera_online_count": tactical_payload["camera_online_count"],
     }
@@ -758,8 +824,9 @@ def main():
                 last_mqtt_publish = now
                 tactical_payload, metric_payload = build_payloads(contexts, args, fused_people, combined_map)
                 try:
-                    mqtt_client.publish(args.mqtt_topic, json.dumps(tactical_payload), qos=1)
-                    mqtt_client.publish(args.mqtt_metrics_topic, json.dumps(metric_payload), qos=1)
+                    if ensure_mqtt_connected(mqtt_client):
+                        publish_mqtt_json(mqtt_client, args.mqtt_topic, tactical_payload, qos=1)
+                        publish_mqtt_json(mqtt_client, args.mqtt_metrics_topic, metric_payload, qos=1)
                 except Exception as e:
                     print(f"MQTT publish failed: {e}")
 

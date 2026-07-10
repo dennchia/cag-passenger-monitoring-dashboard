@@ -149,13 +149,13 @@ class MqttBridge:
             zone_counts = dict(run_zone_counts)
             camera_online_count = self._latest_camera_online_count_by_run.get(run_id)
 
-        if zone_counts:
+        try:
+            passenger_count = max(0, int(payload.get("passenger_count", 0)))
+        except (TypeError, ValueError):
+            passenger_count = 0
+
+        if payload.get("passenger_count") is None and zone_counts:
             passenger_count = sum(zone_counts.values())
-        else:
-            try:
-                passenger_count = max(0, int(payload.get("passenger_count", 0)))
-            except (TypeError, ValueError):
-                passenger_count = 0
 
         try:
             return MetricLogCreate(

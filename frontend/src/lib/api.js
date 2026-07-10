@@ -20,6 +20,7 @@ export const endpoints = {
   tactical: apiUrl("/api/tactical"),
   tacticalLatest: (cameraId, runId) =>
     withQuery(apiUrl("/api/tactical/latest"), { camera_id: cameraId, run_id: runId }),
+  tacticalLatestGlobal: (runId) => withQuery(apiUrl("/api/tactical/latest"), { run_id: runId }),
   alerts: apiUrl("/api/alerts"),
   observations: apiUrl("/api/observations"),
   observationsSummary: apiUrl("/api/observations/summary"),

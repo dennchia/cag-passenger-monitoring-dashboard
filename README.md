@@ -188,9 +188,15 @@ MQTT topics carry lightweight live telemetry:
 
 ```text
 cag/metrics   -> passenger_count, zone_counts, camera_online_count
-cag/tactical  -> people_count, positions_cm, map_size_cm
+cag/tactical  -> people_count, inside_count, outside_visible_count, positions_cm, map_size_cm, outside_context_cm
 cag/alerts    -> severity and message
 ```
+
+The tactical map is a global fused floor map. The CV pipeline should publish `cag/tactical` with
+`camera_id: "fused"` for the combined 2D plane, while per-camera counts stay inside `zone_counts`.
+The dashboard camera selector changes the live video feed only; it does not change the tactical map.
+The dashboard treats `people_count` as inside occupancy. Points inside the calibrated tent render as red dots,
+while visible points outside the tent render as cyan context dots in a compressed outside border.
 
 Large person crop images still use HTTP multipart upload through `POST /api/observations`.
 

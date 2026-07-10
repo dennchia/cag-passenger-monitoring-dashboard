@@ -351,8 +351,12 @@ Current V1.5 implementation direction:
 
 - Keep tactical X/Y coordinates separate from `MetricLog.zone_counts`.
 - Store only the latest tactical state in backend memory because it updates frequently.
-- Use `POST /api/tactical` for the CV pipeline to send camera ID, run ID, people count, map size, and `positions_cm`.
-- Use `GET /api/tactical/latest?camera_id=&run_id=` for the React dashboard to read the latest map state.
+- Treat the tactical map as a global fused floor map; camera selection changes video only.
+- Use `POST /api/tactical` for the CV pipeline to send `camera_id: "fused"`, run ID, inside count, outside visible count, map size, outside context size, and `positions_cm`.
+- Classify positions as `inside` when they are within the calibrated `map_size_cm` tent, and `outside_visible` when they are outside the tent but still within the configured outside context range.
+- Keep per-camera inside counts inside `zone_counts`; capacity bars and metric totals must use inside occupancy only.
+- Do not claim incoming/outgoing direction yet; outside points are awareness context only.
+- Use `GET /api/tactical/latest?run_id=` for the React dashboard to read the latest global map state.
 - Treat tactical data as stale when no update has arrived for 5 seconds.
 
 Expected tactical payload:
@@ -360,19 +364,27 @@ Expected tactical payload:
 ```json
 {
   "timestamp": 1700000000,
-  "camera_id": "cam_1",
+  "camera_id": "fused",
   "run_id": "field_test_001",
   "people_count": 1,
-  "positions_cm": [{ "x": 120.5, "y": 80.2 }],
-  "map_size_cm": 300
+  "inside_count": 1,
+  "outside_visible_count": 1,
+  "positions_cm": [
+    { "x": 120.5, "y": 80.2, "area": "inside" },
+    { "x": -350.0, "y": 140.0, "area": "outside_visible" }
+  ],
+  "map_size_cm": 300,
+  "outside_context_cm": 700,
+  "zone_counts": { "cam_1": 1, "cam_2": 0 }
 }
 ```
 
 Frontend behavior:
 
-- `TacticalMap` renders a square SVG floor map with grid lines, boundary, and red person dots.
+- `TacticalMap` renders the 3m x 3m tent as the dominant central map and compresses outside visible context into a thin surrounding border.
+- Inside occupancy uses red dots; outside visible context uses cyan dots with a small legend.
 - The map appears in the Operations tab below status pills and above the live video.
-- It polls every 1 second while Operations is active and a camera is selected.
+- It polls every 1 second while Operations is active.
 - The map shows waiting/stale status when data is missing or older than 5 seconds.
 
 ### Feature 3 - One-Click Shift Reports

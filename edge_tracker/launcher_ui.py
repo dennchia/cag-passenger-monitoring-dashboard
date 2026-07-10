@@ -6,7 +6,6 @@ from tkinter import messagebox, ttk
 
 from constants import DEFAULT_RTSP_URL
 
-
 ROOT = Path(__file__).resolve().parent
 SCRIPT_PATH = ROOT / "main_tracker.py"
 CORNER_OPTIONS = ["None", "top_left", "top_right", "bottom_right", "bottom_left"]
@@ -23,7 +22,7 @@ class LauncherApp(tk.Tk):
         self.setup = tk.BooleanVar(value=False)
         self.use_mediapipe = tk.BooleanVar(value=True)
         self.use_reid = tk.BooleanVar(value=False)
-        self.use_mqtt = tk.BooleanVar(value=False)
+        self.use_mqtt = tk.BooleanVar(value=True)
 
         self.source_1 = tk.StringVar(value=DEFAULT_RTSP_URL)
         self.source_2 = tk.StringVar(value="rtsp://admin:P@ssword1@192.168.50.76:554/Streaming/Channels/101")
@@ -37,7 +36,7 @@ class LauncherApp(tk.Tk):
         self.model = tk.StringVar(value="yolo11n.pt")
         self.run_id = tk.StringVar(value="field_test_001")
         self.fusion_distance = tk.StringVar(value="50")
-        self.mqtt_broker = tk.StringVar(value="192.168.50.45")
+        self.mqtt_broker = tk.StringVar(value="localhost")
         self.mqtt_port = tk.StringVar(value="1883")
 
         self.command_preview = tk.StringVar(value="")

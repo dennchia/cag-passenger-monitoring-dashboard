@@ -10,6 +10,7 @@ The V1 dashboard supports dark and light operational monitoring styles:
 - compact right sidebar
 - compact camera switcher inside the video panel when multiple cameras exist
 - schematic tactical floor map for live X/Y person dots from the CV homography pipeline
+- boundary-aware tactical map: red dots mean inside occupancy, cyan dots mean outside visible context
 - separate Passenger Assistance tab for filtered age/gender observation cards
 - color only for status, alert severity, and connection state
 - no landing-page or marketing layout
@@ -28,7 +29,8 @@ Primary hierarchy:
 
 - `VideoPlayer` owns the selected camera stream display and the camera selector.
 - `OperationsStatusPills` shows backend, selected camera health, all-camera count, and resolution above the video.
-- `TacticalMap` shows latest camera-keyed X/Y positions as dots on a schematic floor map and marks stale data clearly.
+- `TacticalMap` shows the fused X/Y positions on a schematic map, keeps the calibrated tent as the dominant central region, compresses outside visible context into a thin border, and marks stale data clearly.
+- `TacticalMap` legends must stay small: red = inside occupancy, cyan = outside visible. Outside visible does not affect capacity.
 - `ZoneCapacityBars` shows camera-keyed capacity pressure between the status pills and the live video.
 - `MetricTrendSparkline` shows a compact trailing passenger-count trend beside the zone capacity panel.
 - `OperationsSidebarTabs` toggles between metrics and alerts in the right sidebar.

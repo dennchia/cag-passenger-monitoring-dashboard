@@ -129,6 +129,7 @@ class ZoneStatusRead(BaseModel):
 class TacticalPosition(BaseModel):
     x: float
     y: float
+    area: str | None = None
 
 
 class TacticalStateCreate(BaseModel):
@@ -139,6 +140,7 @@ class TacticalStateCreate(BaseModel):
     people_count: int = Field(ge=0)
     positions_cm: list[TacticalPosition] = Field(default_factory=list)
     map_size_cm: int = Field(default=300, gt=0, le=10000)
+    outside_context_cm: int = Field(default=700, ge=0, le=5000)
 
     @field_validator("timestamp", mode="before")
     @classmethod
@@ -155,8 +157,12 @@ class TacticalStateRead(BaseModel):
     run_id: str | None = None
     camera_source: str | None = None
     people_count: int = 0
+    inside_count: int = 0
+    outside_visible_count: int = 0
+    total_visible_count: int = 0
     positions_cm: list[TacticalPosition] = Field(default_factory=list)
     map_size_cm: int = 300
+    outside_context_cm: int = 700
     has_data: bool = False
     stale: bool = True
     age_seconds: float | None = None

@@ -76,11 +76,10 @@ export default function App() {
 
   const selectedCamera =
     cameras.find((camera) => camera.camera_id === selectedCameraId) || cameras[0] || null;
-  const tacticalCameraId = selectedCamera?.camera_id || selectedCameraId;
   const currentRunId = metrics[0]?.run_id || "";
 
   useEffect(() => {
-    if (activeTab !== "operations" || !tacticalCameraId) {
+    if (activeTab !== "operations") {
       return undefined;
     }
 
@@ -89,14 +88,14 @@ export default function App() {
 
     async function pollTactical() {
       try {
-        const nextTacticalState = await fetchJson(endpoints.tacticalLatest(tacticalCameraId));
+        const nextTacticalState = await fetchJson(endpoints.tacticalLatestGlobal(currentRunId));
         if (!isMounted) return;
         setTacticalState(nextTacticalState);
       } catch (error) {
         if (!isMounted) return;
         setTacticalState((current) => ({
           ...(current || {}),
-          camera_id: tacticalCameraId,
+          camera_id: current?.camera_id || "fused",
           has_data: Boolean(current?.has_data),
           stale: true,
         }));
@@ -109,7 +108,7 @@ export default function App() {
       isMounted = false;
       window.clearInterval(interval);
     };
-  }, [activeTab, tacticalCameraId]);
+  }, [activeTab, currentRunId]);
 
   return (
     <DashboardLayout
@@ -130,7 +129,7 @@ export default function App() {
             <ExportShiftReportButton runId={currentRunId} />
           </div>
           <div className="grid gap-4 2xl:grid-cols-[minmax(420px,0.95fr)_minmax(0,1.05fr)]">
-            <TacticalMap state={tacticalState} cameraId={tacticalCameraId} apiOnline={apiOnline} />
+            <TacticalMap state={tacticalState} cameraId="fused" apiOnline={apiOnline} />
             <div className="grid content-start gap-4">
               <ZoneCapacityBars zones={zoneStatus} />
               <MetricTrendSparkline points={metricTrend} />
