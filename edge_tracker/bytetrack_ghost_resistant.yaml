@@ -1,0 +1,17 @@
+# Project-owned ByteTrack settings tuned to reduce short-lived duplicate tracks.
+# Raise the two high/new thresholds to reject weak unmatched detections before
+# they become new local IDs. Keep this file under version control so an
+# Ultralytics package update cannot silently change the tracker behaviour.
+
+tracker_type: botsort
+track_high_thresh: 0.50
+track_low_thresh: 0.25
+new_track_thresh: 0.25
+track_buffer: 30
+match_thresh: 0.80
+fuse_score: true
+gmc_method: sparseOptFlow
+proximity_thresh: 0.5
+appearance_thresh: 0.8
+with_reid: true
+model: auto
