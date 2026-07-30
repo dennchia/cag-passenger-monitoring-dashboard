@@ -4,10 +4,12 @@ import time
 import cv2
 
 from constants import DISPLAY_SIZE
+from identity_debug import identity_event
 
 
 class LiveCamera:
-    def __init__(self, source):
+    def __init__(self, source, camera_id=None):
+        self.camera_id = str(camera_id or "camera")
         self.cap = cv2.VideoCapture(source)
         self.lock = threading.Lock()
         self.running = False
@@ -25,12 +27,36 @@ class LiveCamera:
             self.thread = threading.Thread(target=self.update, daemon=True) #make it a daemon thread will automatically exit and run independently
             self.thread.start()
 
+    def prepare_frame(self, frame):
+        return frame
+
     def is_opened(self):
         return self.cap.isOpened()
 
     def update(self):
         while self.running:
-            ret, frame = self.cap.read()
+            try:
+                ret, frame = self.cap.read()
+            except Exception as exc:
+                with self.lock:
+                    self.ret = False
+                    self.frame = None
+                self.running = False
+                print(
+                    f"[CAMERA_DEBUG] {self.camera_id} capture raised "
+                    f"{type(exc).__name__}: {exc}",
+                    flush=True,
+                )
+                # TEMP_CAMERA_DEBUG: remove after RTSP shutdown diagnosis.
+                identity_event(
+                    "camera_stream_read_failed",
+                    camera_id=self.camera_id,
+                    reason="capture_exception",
+                    exception_type=type(exc).__name__,
+                    exception_message=str(exc),
+                    last_sequence=self.sequence,
+                )
+                break
             with self.lock:
                 self.ret = ret
                 self.frame = frame
@@ -40,13 +66,28 @@ class LiveCamera:
 
             if not ret:
                 self.running = False
+                print(
+                    f"[CAMERA_DEBUG] {self.camera_id} capture returned no frame; "
+                    f"reader stopped at sequence {self.sequence}.",
+                    flush=True,
+                )
+                # TEMP_CAMERA_DEBUG: remove after RTSP shutdown diagnosis.
+                identity_event(
+                    "camera_stream_read_failed",
+                    camera_id=self.camera_id,
+                    reason="capture_returned_false",
+                    last_sequence=self.sequence,
+                    capture_opened=bool(self.cap.isOpened()),
+                )
 
     def read(self):
         with self.lock:
             if self.frame is None:
                 return self.ret, None
+            ret = self.ret
+            frame = self.frame.copy()
 
-            return self.ret, self.frame.copy()
+        return ret, self.prepare_frame(frame)
 
     def read_with_metadata(self):
         with self.lock:

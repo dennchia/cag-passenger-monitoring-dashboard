@@ -23,8 +23,9 @@ class TacticalStateStore:
             map_size_cm=payload.map_size_cm,
             outside_context_cm=payload.outside_context_cm,
         )
-        inside_count = sum(1 for position in positions if position.area == "inside")
-        outside_visible_count = sum(1 for position in positions if position.area == "outside_visible")
+        evacuee_positions = [position for position in positions if position.role == "evacuee"]
+        inside_count = sum(1 for position in evacuee_positions if position.area == "inside")
+        outside_visible_count = sum(1 for position in evacuee_positions if position.area == "outside_visible")
         state = TacticalStateRead(
             timestamp=payload.timestamp or now,
             received_at=now,
@@ -34,7 +35,7 @@ class TacticalStateStore:
             people_count=inside_count,
             inside_count=inside_count,
             outside_visible_count=outside_visible_count,
-            total_visible_count=inside_count + outside_visible_count,
+            total_visible_count=len(positions),
             positions_cm=positions,
             map_size_cm=payload.map_size_cm,
             outside_context_cm=payload.outside_context_cm,

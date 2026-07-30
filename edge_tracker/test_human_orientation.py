@@ -1,7 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
-from pose_engine import get_human_orientation
+from pose_engine import assess_reid_body_completeness, get_human_orientation
 
 
 def landmark(x=0.0, y=0.0, z=0.0, visibility=1.0):
@@ -14,6 +14,16 @@ def pose(left_shoulder, right_shoulder, left_hip, right_hip):
     landmarks[12] = right_shoulder
     landmarks[23] = left_hip
     landmarks[24] = right_hip
+    return landmarks
+
+
+def complete_body_pose():
+    landmarks = [landmark(visibility=0.0) for _ in range(33)]
+    landmarks[0] = landmark(0.50, 0.08)
+    landmarks[11] = landmark(0.42, 0.25)
+    landmarks[23] = landmark(0.45, 0.50)
+    landmarks[25] = landmark(0.46, 0.70)
+    landmarks[27] = landmark(0.47, 0.92)
     return landmarks
 
 
@@ -60,6 +70,86 @@ class HumanOrientationTests(unittest.TestCase):
             landmark(0.50, 0.5), landmark(0.50, 0.5),
         )
         self.assertIsNone(get_human_orientation(ambiguous))
+
+
+class ReIDBodyCompletenessTests(unittest.TestCase):
+    def test_one_visible_side_is_enough_for_a_complete_body(self):
+        complete, missing = assess_reid_body_completeness(complete_body_pose())
+
+        self.assertTrue(complete)
+        self.assertEqual(missing, ())
+
+    def test_missing_head_and_shoulders_are_reported(self):
+        landmarks = complete_body_pose()
+        landmarks[0] = landmark(0.50, 0.08, visibility=0.1)
+        landmarks[11] = landmark(0.42, 0.25, visibility=0.1)
+
+        complete, missing = assess_reid_body_completeness(landmarks)
+
+        self.assertFalse(complete)
+        self.assertIn("head", missing)
+        self.assertIn("shoulders", missing)
+
+    def test_landmark_outside_saved_reid_crop_is_missing(self):
+        landmarks = complete_body_pose()
+
+        complete, missing = assess_reid_body_completeness(
+            landmarks,
+            normalized_bounds=(0.0, 0.10, 1.0, 1.0),
+        )
+
+        self.assertFalse(complete)
+        self.assertIn("head", missing)
+
+    def test_none_and_short_landmark_sets_are_safe(self):
+        for landmarks in (None, [landmark()]):
+            complete, missing = assess_reid_body_completeness(landmarks)
+            self.assertFalse(complete)
+            self.assertTrue(missing)
+
+    def test_front_and_side_views_require_nose_and_one_eye(self):
+        landmarks = complete_body_pose()
+        complete, missing = assess_reid_body_completeness(landmarks, orientation="front")
+        self.assertFalse(complete)
+        self.assertIn("head", missing)
+
+        landmarks[2] = landmark(0.48, 0.06)
+        complete, missing = assess_reid_body_completeness(landmarks, orientation="left_side")
+        self.assertTrue(complete)
+        self.assertEqual(missing, ())
+
+    def test_complete_body_can_be_close_to_crop_edges(self):
+        landmarks = complete_body_pose()
+        landmarks[0] = landmark(0.50, 0.01)
+        landmarks[2] = landmark(0.48, 0.01)
+        landmarks[27] = landmark(0.47, 0.99)
+        complete, missing = assess_reid_body_completeness(landmarks, orientation="front")
+        self.assertTrue(complete)
+        self.assertEqual(missing, ())
+
+    def test_detection_touching_vertical_frame_boundary_is_rejected(self):
+        complete, missing = assess_reid_body_completeness(
+            complete_body_pose(),
+            touches_vertical_frame_boundary=True,
+        )
+        self.assertFalse(complete)
+        self.assertIn("frame_boundary", missing)
+
+    def test_body_completeness_debug_details_explain_landmark_decision(self):
+        landmarks = complete_body_pose()
+        details = {}
+
+        complete, missing = assess_reid_body_completeness(
+            landmarks,
+            debug_details=details,
+        )
+
+        self.assertTrue(complete)
+        self.assertEqual(missing, ())
+        self.assertTrue(details["body_complete"])
+        self.assertIn("left_ankle", details["landmarks"])
+        self.assertIn("visibility", details["landmarks"]["left_ankle"])
+        self.assertTrue(details["landmarks"]["left_ankle"]["within_saved_crop"])
 
 
 if __name__ == "__main__":

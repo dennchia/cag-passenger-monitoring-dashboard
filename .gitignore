@@ -2,6 +2,9 @@
 __pycache__/
 *.py[cod]
 .venv/
+.venv-cv/
+.venv-cv-linux/
+backend/.venv-linux/
 venv/
 .pytest_cache/
 .mypy_cache/
@@ -15,6 +18,7 @@ frontend/dist/
 
 # Logs
 *.log
+LogEvidance/
 streamlit.out.log
 streamlit.err.log
 
@@ -45,6 +49,8 @@ streamlit.err.log
 *.engine
 edge_tracker/homography_matrix*.json
 edge_tracker/angle_evidence/
+# TEMP_IDENTITY_DEBUG: generated troubleshooting trace; never commit it.
+edge_tracker/identity_debug_events.jsonl
 
 # Uploaded/generated runtime files
 backend/uploads/
@@ -58,3 +64,17 @@ tmp/
 Thumbs.db
 .vscode/
 .idea/
+
+# Local integration and review artifacts
+edge_tracker/angle_evidence*/
+tmp_video_review/
+latest_recording_*.png
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.tar.xz

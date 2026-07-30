@@ -93,6 +93,25 @@ def resolve_memory_key(track_id, identity_id=None):
     return ("track", int(track_id))
 
 
+def _entry_owner_conflicts_in_frame(cached, track_id, frame_index):
+    """Return True when another local track wrote this slot in the same frame.
+
+    Position memories are deliberately keyed by identity so a person keeps
+    their learned foot position when the local tracker renumbers their track.
+    That sharing is only safe while exactly one live track owns an identity
+    per camera.  If two do, both are served from one slot and their map points
+    collapse onto a single dot.  Refusing a same-frame cross-track read keeps
+    each track on its own measurement without giving up the renumber carry-over,
+    which happens across frames rather than inside one.
+    """
+    if cached is None or track_id is None or frame_index is None:
+        return False
+    owner_track_id = cached.get("owner_track_id")
+    if owner_track_id is None:
+        return False
+    return int(owner_track_id) != int(track_id) and int(cached["frame_index"]) == int(frame_index)
+
+
 def remember_foot_point(last_foot_memory, track_id, foot_point, frame_index, identity_id=None):
     memory_key = resolve_memory_key(track_id, identity_id)
     if last_foot_memory is None or memory_key is None or foot_point is None or frame_index is None:
@@ -101,6 +120,7 @@ def remember_foot_point(last_foot_memory, track_id, foot_point, frame_index, ide
     last_foot_memory[memory_key] = {
         "point": np.array(foot_point, dtype=float),
         "frame_index": int(frame_index),
+        "owner_track_id": None if track_id is None else int(track_id),
     }
 
 
@@ -111,6 +131,9 @@ def recall_recent_foot_point(last_foot_memory, track_id, frame_index, max_age_fr
 
     cached = last_foot_memory.get(memory_key)
     if cached is None:
+        return None
+
+    if _entry_owner_conflicts_in_frame(cached, track_id, frame_index):
         return None
 
     age = int(frame_index) - int(cached["frame_index"])
@@ -134,6 +157,12 @@ def reject_impossible_foot_jump(last_foot_memory, track_id, foot_point, frame_in
 
     cached = last_foot_memory.get(memory_key)
     if cached is None:
+        return None
+
+    # A second live track sharing this identity must never have its own
+    # measured foot rejected as an "impossible jump" away from the first
+    # track's position.
+    if _entry_owner_conflicts_in_frame(cached, track_id, frame_index):
         return None
 
     frame_delta = int(frame_index) - int(cached["frame_index"])
@@ -294,27 +323,55 @@ def extrapolate_fourth_corner(known_corners, edge_points=None, missing_corner="b
     return fallback
 
 
-def update_map_motion(memory, memory_key, map_point_cm, timestamp, max_speed_mps=DEFAULT_MAX_PERSON_SPEED_MPS, ema_alpha=DEFAULT_MAP_POSITION_EMA_ALPHA):
+def update_map_motion(memory, memory_key, map_point_cm, timestamp, max_speed_mps=DEFAULT_MAX_PERSON_SPEED_MPS, ema_alpha=DEFAULT_MAP_POSITION_EMA_ALPHA, owner=None):
     if memory is None or memory_key is None or map_point_cm is None or timestamp is None:
         return map_point_cm, None, "no_id"
 
     raw_point = np.array(map_point_cm, dtype=float)
     previous = memory.get(memory_key)
     if previous is None:
-        memory[memory_key] = {"point": raw_point, "timestamp": float(timestamp), "speed_mps": 0.0}
+        memory[memory_key] = {
+            "point": raw_point,
+            "timestamp": float(timestamp),
+            "speed_mps": 0.0,
+            "owner": owner,
+        }
         return tuple(raw_point), 0.0, "new"
 
     previous_point = np.array(previous["point"], dtype=float)
     dt = float(timestamp) - float(previous["timestamp"])
+    previous_owner = previous.get("owner")
+    if (
+        dt <= 1e-6
+        and owner is not None
+        and previous_owner is not None
+        and owner != previous_owner
+    ):
+        # Every detection in a frame shares one capture timestamp, so a second
+        # local track holding the same identity would otherwise be handed the
+        # first track's smoothed point verbatim and the two people would render
+        # as a single dot.  Return this track's own measurement instead, and
+        # leave the first owner's entry intact rather than ping-ponging.
+        return tuple(raw_point), None, "owner_conflict"
     if dt <= 1e-6:
         return tuple(previous_point), previous.get("speed_mps"), "same_time"
 
     raw_speed_mps = distance_cm(raw_point, previous_point) / 100.0 / dt
     if raw_speed_mps > max_speed_mps:
-        memory[memory_key] = {"point": previous_point, "timestamp": float(timestamp), "speed_mps": raw_speed_mps}
+        memory[memory_key] = {
+            "point": previous_point,
+            "timestamp": float(timestamp),
+            "speed_mps": raw_speed_mps,
+            "owner": owner,
+        }
         return tuple(previous_point), raw_speed_mps, "speed_hold"
 
     smoothed_point = (1.0 - ema_alpha) * previous_point + ema_alpha * raw_point
     smoothed_speed_mps = distance_cm(smoothed_point, previous_point) / 100.0 / dt
-    memory[memory_key] = {"point": smoothed_point, "timestamp": float(timestamp), "speed_mps": smoothed_speed_mps}
+    memory[memory_key] = {
+        "point": smoothed_point,
+        "timestamp": float(timestamp),
+        "speed_mps": smoothed_speed_mps,
+        "owner": owner,
+    }
     return tuple(smoothed_point), smoothed_speed_mps, "smooth"

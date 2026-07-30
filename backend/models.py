@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import DateTime, Float, Integer, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
@@ -49,6 +49,51 @@ class PassengerObservation(Base):
     gender_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     image_path: Mapped[str] = mapped_column(Text)
     image_url: Mapped[str] = mapped_column(Text)
+
+
+class EvacueeIdentity(Base):
+    __tablename__ = "evacuee_identities"
+    __table_args__ = (
+        UniqueConstraint("run_id", "master_identity_id", name="uq_evacuee_run_master"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    run_id: Mapped[str] = mapped_column(String(80), default="default", index=True)
+    master_identity_id: Mapped[int] = mapped_column(Integer, index=True)
+    role: Mapped[str] = mapped_column(String(32), default="evacuee", index=True)
+    role_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    age: Mapped[float | None] = mapped_column(Float, nullable=True, index=True)
+    gender: Mapped[str] = mapped_column(String(32), default="unknown", index=True)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+    last_camera_id: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    current_status: Mapped[str] = mapped_column(String(32), default="inside", index=True)
+
+
+class EvacueeGalleryView(Base):
+    __tablename__ = "evacuee_gallery_views"
+    __table_args__ = (
+        UniqueConstraint("evacuee_id", "view_type", name="uq_evacuee_gallery_view"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    evacuee_id: Mapped[int] = mapped_column(
+        ForeignKey("evacuee_identities.id", ondelete="CASCADE"),
+        index=True,
+    )
+    view_type: Mapped[str] = mapped_column(String(24), index=True)
+    image_path: Mapped[str] = mapped_column(Text)
+    image_url: Mapped[str] = mapped_column(Text)
+    feature_blob: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    feature_dimension: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    feature_space_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    feature_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+    captured_frame: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    camera_id: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    sharpness: Mapped[float | None] = mapped_column(Float, nullable=True)
+    detection_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class MetricLogCreate(BaseModel):
@@ -118,6 +163,56 @@ class PassengerObservationSummary(BaseModel):
     minors: int = 0
 
 
+class EvacueeIdentityUpsert(BaseModel):
+    role: str = Field(default="evacuee", min_length=1, max_length=32)
+    role_confidence: float | None = Field(default=None, ge=0, le=1)
+    age: float | None = Field(default=None, ge=0, le=120)
+    gender: str = Field(default="unknown", min_length=1, max_length=32)
+    first_seen_at: datetime | None = None
+    last_seen_at: datetime | None = None
+    last_camera_id: str | None = Field(default=None, max_length=80)
+    current_status: str = Field(default="inside", min_length=1, max_length=32)
+
+
+class EvacueeGalleryViewRead(BaseModel):
+    id: int
+    view_type: str
+    image_url: str
+    captured_at: datetime
+    captured_frame: int | None = None
+    camera_id: str | None = None
+    sharpness: float | None = None
+    detection_confidence: float | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class EvacueeIdentityRead(BaseModel):
+    id: int
+    run_id: str
+    master_identity_id: int
+    role: str
+    role_confidence: float | None = None
+    age: float | None = None
+    gender: str
+    first_seen_at: datetime
+    last_seen_at: datetime
+    last_camera_id: str | None = None
+    current_status: str
+    gallery_filled: int = 0
+    gallery_total: int = 5
+    primary_view: EvacueeGalleryViewRead | None = None
+    views: list[EvacueeGalleryViewRead] = Field(default_factory=list)
+
+
+class EvacueeSummary(BaseModel):
+    total_analyzed: int = 0
+    males: int = 0
+    females: int = 0
+    unknown: int = 0
+    minors: int = 0
+
+
 class ZoneStatusRead(BaseModel):
     zone_id: str
     count: int
@@ -130,6 +225,9 @@ class TacticalPosition(BaseModel):
     x: float
     y: float
     area: str | None = None
+    person_id: str | None = None
+    master_id: int | None = None
+    role: str | None = None
 
 
 class TacticalStateCreate(BaseModel):

@@ -11,10 +11,15 @@ class FakeCapture:
     def __init__(self, success=True, sequence=8):
         self.success = success
         self.sequence = sequence
+        self.prepare_calls = 0
 
     def read_with_metadata(self):
         frame = np.zeros((20, 20, 3), dtype=np.uint8) if self.success else None
         return self.success, frame, 10.0, self.sequence
+
+    def prepare_frame(self, frame):
+        self.prepare_calls += 1
+        return frame + 1
 
 
 class FakeModel:
@@ -45,12 +50,14 @@ class CameraSequenceHandlingTests(unittest.TestCase):
         self.assertTrue(process_camera_frame(context, 0.4, "cpu"))
         self.assertEqual(context.tactical_points, [(1.0, 2.0)])
         self.assertEqual(len(context.tactical_observations), 1)
+        self.assertEqual(context.cap.prepare_calls, 0)
 
     def test_failed_capture_clears_stale_observations(self):
         context = self.make_context(success=False)
         self.assertFalse(process_camera_frame(context, 0.4, "cpu"))
         self.assertEqual(context.tactical_points, [])
         self.assertEqual(context.tactical_observations, [])
+        self.assertEqual(context.cap.prepare_calls, 0)
 
     def test_tracker_controls_are_forwarded_and_shadow_is_not_published(self):
         context = SimpleNamespace(
@@ -89,9 +96,12 @@ class CameraSequenceHandlingTests(unittest.TestCase):
 
         self.assertEqual(context.model.kwargs["iou"], 0.61)
         self.assertEqual(context.model.kwargs["tracker"], "custom_tracker.yaml")
+        self.assertEqual(context.model.kwargs["device"], "cpu")
         self.assertEqual(context.tactical_points, [])
         self.assertEqual(context.tactical_observations, [])
         self.assertIsNotNone(context.annotated_frame)
+        self.assertEqual(context.cap.prepare_calls, 1)
+        self.assertTrue(np.all(context.raw_frame == 1))
 
 
 if __name__ == "__main__":

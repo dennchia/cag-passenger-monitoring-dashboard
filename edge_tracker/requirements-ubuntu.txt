@@ -1,0 +1,13 @@
+ultralytics
+mediapipe
+opencv-python
+numpy
+paho-mqtt
+pillow
+transformers
+huggingface-hub
+timm
+yacs
+termcolor
+tabulate
+scipy

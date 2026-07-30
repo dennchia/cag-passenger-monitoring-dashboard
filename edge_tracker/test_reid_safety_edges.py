@@ -245,8 +245,10 @@ class ReIDSafetyEdgeTests(unittest.TestCase):
             enable_demographics=False,
         )
         self.memories.append(memory)
-        with mock.patch.object(Path, "mkdir", return_value=None), mock.patch(
-            "reid_memory.cv2.imwrite", return_value=False
+        with mock.patch.object(
+            memory,
+            "_send_evidence_task",
+            return_value={"ok": False, "error": "intentional evidence failure"},
         ):
             for frame_index in range(1, 6):
                 process_tracks(memory, frame_index, [1])

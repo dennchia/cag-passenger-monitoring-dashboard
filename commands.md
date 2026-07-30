@@ -18,4 +18,5 @@ Test-NetConnection YOUR_LAPTOP_IP -Port 1883
 
 5. Strong pc should use this connection
 --mqtt-broker 192.168.50.197 `
---mqtt-port 1883
+--mqtt-port 1883 `
+--reid-api-url http://192.168.50.197:8000

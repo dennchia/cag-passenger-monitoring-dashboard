@@ -24,6 +24,11 @@ export const endpoints = {
   alerts: apiUrl("/api/alerts"),
   observations: apiUrl("/api/observations"),
   observationsSummary: apiUrl("/api/observations/summary"),
+  evacuees: apiUrl("/api/evacuees"),
+  evacueesSummary: apiUrl("/api/evacuees/summary"),
+  cvStatus: apiUrl("/api/cv/status"),
+  cvStart: apiUrl("/api/cv/session/start"),
+  cvStop: apiUrl("/api/cv/session/stop"),
   shiftReportCsv: (runId) => withQuery(apiUrl("/api/reports/shift.csv"), { run_id: runId }),
   shiftReportXlsx: (runId) => withQuery(apiUrl("/api/reports/shift.xlsx"), { run_id: runId }),
 };
@@ -55,7 +60,14 @@ export async function fetchJson(url, options = {}) {
   });
 
   if (!response.ok) {
-    throw new Error(`Request failed with ${response.status}`);
+    let detail = "";
+    try {
+      const payload = await response.json();
+      detail = typeof payload?.detail === "string" ? payload.detail : "";
+    } catch {
+      // The status code remains useful when an upstream proxy returns HTML.
+    }
+    throw new Error(detail || `Request failed with ${response.status}`);
   }
 
   return response.json();

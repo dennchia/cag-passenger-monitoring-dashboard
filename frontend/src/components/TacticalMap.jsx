@@ -4,6 +4,11 @@ const VIEW_SIZE = 100;
 const TENT_INSET = 8;
 const TENT_SIZE = VIEW_SIZE - TENT_INSET * 2;
 const TENT_END = TENT_INSET + TENT_SIZE;
+const ROLE_COLORS = {
+  evacuee: "#ef4444",
+  cag: "#facc15",
+  scdf: "#f97316",
+};
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -66,6 +71,8 @@ function mapPoint(point, mapSize, outsideContext) {
     area,
     x: mapAxis(x, mapSize, outsideContext),
     y: mapAxis(y, mapSize, outsideContext),
+    role: ROLE_COLORS[point?.role] ? point.role : "evacuee",
+    personId: point?.person_id || point?.master_id || null,
   };
 }
 
@@ -108,14 +115,10 @@ export default function TacticalMap({ state, cameraId, apiOnline }) {
           </div>
           <p className="mt-1 text-xs text-slate-500">Live fused X/Y foot-position dots from CV homography</p>
           <div className="mt-2 flex flex-wrap gap-3 text-xs font-semibold text-slate-400">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.55)]" />
-              Inside occupancy
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_8px_rgba(103,232,249,0.5)]" />
-              Outside visible
-            </span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-500" />Evacuee</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-yellow-400" />CAG</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-orange-500" />SCDF</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full border border-slate-300 bg-transparent" />Hollow = outside</span>
           </div>
         </div>
         <div
@@ -177,19 +180,27 @@ export default function TacticalMap({ state, cameraId, apiOnline }) {
             {plottedPositions
               .filter((point) => point.area === "outside_visible")
               .map((point, index) => (
-                <g key={`outside-${point.x}-${point.y}-${index}`}>
-                  <circle cx={point.x} cy={point.y} r="2.7" fill="#22d3ee" opacity="0.18" />
-                  <circle cx={point.x} cy={point.y} r="1.55" fill="#67e8f9" stroke="#155e75" strokeWidth="0.5" />
-                </g>
+                <circle
+                  key={`outside-${point.personId || index}-${point.x}-${point.y}`}
+                  cx={point.x}
+                  cy={point.y}
+                  r="2.1"
+                  fill="transparent"
+                  stroke={ROLE_COLORS[point.role]}
+                  strokeWidth="0.9"
+                />
               ))}
 
             {plottedPositions
               .filter((point) => point.area === "inside")
               .map((point, index) => (
-                <g key={`inside-${point.x}-${point.y}-${index}`}>
-                  <circle cx={point.x} cy={point.y} r="3.4" fill="#dc2626" opacity="0.16" />
-                  <circle cx={point.x} cy={point.y} r="1.85" fill="#ef4444" stroke="#7f1d1d" strokeWidth="0.55" />
-                </g>
+                <circle
+                  key={`inside-${point.personId || index}-${point.x}-${point.y}`}
+                  cx={point.x}
+                  cy={point.y}
+                  r="2.1"
+                  fill={ROLE_COLORS[point.role]}
+                />
               ))}
           </svg>
 
@@ -210,13 +221,13 @@ export default function TacticalMap({ state, cameraId, apiOnline }) {
           <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
             <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
               <UsersRound className="h-3.5 w-3.5" />
-              Inside
+              Evacuees inside
             </div>
             <div className="mt-1 text-3xl font-black text-red-400">{insideCount}</div>
           </div>
           <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Outside visible</div>
-            <div className="mt-1 text-3xl font-black text-cyan-300">{outsideVisibleCount}</div>
+            <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Evacuees outside</div>
+            <div className="mt-1 text-3xl font-black text-red-400">{outsideVisibleCount}</div>
           </div>
           <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
             <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Last update</div>

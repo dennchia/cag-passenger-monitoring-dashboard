@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import AssistanceView from "./components/AssistanceView.jsx";
+import CvSessionControl from "./components/CvSessionControl.jsx";
 import DashboardLayout from "./components/DashboardLayout.jsx";
 import MetricTrendSparkline from "./components/MetricTrendSparkline.jsx";
 import OperationsSidebarTabs from "./components/OperationsSidebarTabs.jsx";
@@ -122,6 +123,7 @@ export default function App() {
         ) : null
       }
     >
+      <CvSessionControl />
       {activeTab === "operations" ? (
         <section className="grid gap-4">
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-stretch">

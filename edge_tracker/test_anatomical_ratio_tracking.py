@@ -1,16 +1,34 @@
+"""Anatomical-ratio foot estimation: the fallback used when feet are occluded.
+
+When a person walks behind someone else their feet vanish, so the tactical map
+point is reconstructed from the head-to-shoulder anchor and a learned body
+ratio.  These tests pin that reconstruction, the quality gates that decide when
+the ratio may be learned, and the physics hold that rejects a teleporting foot.
+
+Position memories are addressed through ``resolve_memory_key``, which namespaces
+entries as ``("track", id)`` or ``("identity", id)``.  Tests use that helper
+rather than raw ids: seeding a raw id would leave the assertion passing
+vacuously, because the production write would land on a different key.
+
+An earlier test here covered synchronous single-crop ID reuse in
+AppearanceIdentityMemory.  That behaviour was replaced by the asynchronous
+five-crop intake, and its successor is
+``test_reid_intake_lifecycle.test_new_local_id_reuses_existing_master_through_all_slot_matcher``.
+"""
+
 import unittest
 
 import numpy as np
 
-from cctv_detect_humans_feet import (
-    AppearanceIdentityMemory,
+from core_math import (
     calculate_anatomical_ratio,
-    estimate_mediapipe_foot_point,
     estimate_virtual_foot_from_ratio,
     extrapolate_fourth_corner,
-    remap_state_dict_for_timm,
+    resolve_memory_key,
     store_anatomical_ratio,
 )
+from pose_engine import estimate_mediapipe_foot_point
+from reid_memory import remap_state_dict_for_timm
 
 
 class FakeLandmark:
@@ -108,11 +126,25 @@ class AnatomicalRatioTrackingTest(unittest.TestCase):
         store_anatomical_ratio(memory, 1, 0.10)
         store_anatomical_ratio(memory, 1, 0.20)
 
-        self.assertAlmostEqual(memory[1], 0.11)
+        self.assertAlmostEqual(memory[resolve_memory_key(1)], 0.11)
+
+    def test_memory_keys_are_namespaced_by_track_or_identity(self):
+        """Pin the key encoding once, so the other tests can use the helper."""
+        self.assertEqual(resolve_memory_key(7), ("track", 7))
+        self.assertEqual(resolve_memory_key(7, identity_id=3), ("identity", 3))
+        self.assertIsNone(resolve_memory_key(None))
+
+        memory = {}
+        store_anatomical_ratio(memory, 7, 0.10)
+        store_anatomical_ratio(memory, 7, 0.10, identity_id=3)
+
+        # A track and an identity that happen to share a number must not
+        # collide, which is why raw ids are no longer used as keys.
+        self.assertEqual(sorted(memory, key=repr), [("identity", 3), ("track", 7)])
 
     def test_mediapipe_ratio_update_uses_slow_ema_when_head_straight_and_feet_clear(self):
         frame = np.zeros((300, 300, 3), dtype=np.uint8)
-        memory = {5: 0.10}
+        memory = {resolve_memory_key(5): 0.10}
         last_foot_memory = {}
         box = np.array([0.0, 0.0, 100.0, 220.0])
         landmarks = make_landmarks(
@@ -142,11 +174,13 @@ class AnatomicalRatioTrackingTest(unittest.TestCase):
 
         self.assertEqual(method, "mediapipe")
         self.assertTrue(np.allclose(foot, np.array([50.0, 200.0])))
-        self.assertAlmostEqual(memory[5], 0.10 * 0.98 + (20.0 / 130.0) * 0.02)
+        self.assertAlmostEqual(
+            memory[resolve_memory_key(5)], 0.10 * 0.98 + (20.0 / 130.0) * 0.02
+        )
 
     def test_low_confidence_feet_do_not_update_ratio_memory(self):
         frame = np.zeros((300, 300, 3), dtype=np.uint8)
-        memory = {6: 0.10}
+        memory = {resolve_memory_key(6): 0.10}
         last_foot_memory = {}
         box = np.array([0.0, 0.0, 100.0, 220.0])
         landmarks = make_landmarks(
@@ -176,7 +210,10 @@ class AnatomicalRatioTrackingTest(unittest.TestCase):
 
         self.assertEqual(method, "mediapipe")
         self.assertTrue(np.allclose(foot, np.array([50.0, 200.0])))
-        self.assertAlmostEqual(memory[6], 0.10)
+        # Ankles at 0.60 clear MIN_MEDIAPIPE_VISIBILITY but not the stricter
+        # MIN_INITIAL_FOOT_VISIBILITY, so the foot is usable but must not
+        # rewrite the learned ratio.
+        self.assertAlmostEqual(memory[resolve_memory_key(6)], 0.10)
 
     def test_transreid_state_dict_keys_are_remapped_for_timm(self):
         state_dict = {
@@ -236,8 +273,13 @@ class AnatomicalRatioTrackingTest(unittest.TestCase):
         )
         self.assertEqual(method, "mediapipe")
         self.assertTrue(np.allclose(foot, np.array([50.0, 200.0])))
-        self.assertAlmostEqual(memory[42], 20.0 / 130.0)
-        self.assertTrue(np.allclose(last_foot_memory[42]["point"], np.array([50.0, 200.0])))
+        self.assertAlmostEqual(memory[resolve_memory_key(42)], 20.0 / 130.0)
+        self.assertTrue(
+            np.allclose(
+                last_foot_memory[resolve_memory_key(42)]["point"],
+                np.array([50.0, 200.0]),
+            )
+        )
 
         foot, method = estimate_mediapipe_foot_point(
             frame,
@@ -301,7 +343,7 @@ class AnatomicalRatioTrackingTest(unittest.TestCase):
 
     def test_missing_ankle_does_not_count_as_real_foot(self):
         frame = np.zeros((300, 300, 3), dtype=np.uint8)
-        memory = {9: 20.0 / 130.0}
+        memory = {resolve_memory_key(9): 20.0 / 130.0}
         last_foot_memory = {}
         box = np.array([0.0, 0.0, 100.0, 200.0])
         landmarks = make_landmarks(
@@ -362,7 +404,7 @@ class AnatomicalRatioTrackingTest(unittest.TestCase):
 
     def test_looking_down_uses_virtual_foot_and_freezes_ratio_memory(self):
         frame = np.zeros((300, 300, 3), dtype=np.uint8)
-        memory = {8: 20.0 / 130.0}
+        memory = {resolve_memory_key(8): 20.0 / 130.0}
         last_foot_memory = {}
         box = np.array([0.0, 0.0, 100.0, 220.0])
         landmarks = make_landmarks(
@@ -392,12 +434,58 @@ class AnatomicalRatioTrackingTest(unittest.TestCase):
 
         self.assertEqual(method, "anatomical_ratio")
         self.assertTrue(np.allclose(foot, np.array([50.0, 230.0])))
-        self.assertAlmostEqual(memory[8], 20.0 / 130.0)
+        # A head-down pose must never be used to relearn the ratio.
+        self.assertAlmostEqual(memory[resolve_memory_key(8)], 20.0 / 130.0)
+
+    def test_head_down_first_sighting_never_learns_a_ratio(self):
+        """Feet visible but head down, and nothing learned yet.
+
+        The earlier head-down test returns through the stored-ratio branch, so
+        it never reaches the gate that decides whether a ratio may be learned.
+        A foreshortened head-to-shoulder anchor would bake in a permanently
+        wrong body scale, so the real foot is used and nothing is stored.
+        """
+        frame = np.zeros((300, 300, 3), dtype=np.uint8)
+        memory = {}
+        last_foot_memory = {}
+        box = np.array([0.0, 0.0, 100.0, 220.0])
+        landmarks = make_landmarks(
+            crop_width=112,
+            crop_height=237,
+            points={
+                0: (50.0, 80.0),    # nose well below the eye line
+                2: (45.0, 50.0),
+                5: (55.0, 50.0),
+                11: (50.0, 95.0),
+                12: (50.0, 95.0),
+                27: (50.0, 215.0),  # feet fully visible and sharp
+                29: (50.0, 222.0),
+                31: (50.0, 228.0),
+            },
+        )
+        estimator = FakePoseEstimator([FakePoseResult(landmarks)])
+
+        foot, method = estimate_mediapipe_foot_point(
+            frame,
+            box,
+            estimator,
+            anatomical_ratio_memory=memory,
+            last_foot_memory=last_foot_memory,
+            track_id=77,
+            frame_index=1,
+        )
+
+        # The measured foot is trustworthy; only the ratio update is refused.
+        self.assertEqual(method, "mediapipe")
+        self.assertTrue(np.allclose(foot, np.array([50.0, 225.0])))
+        # 15/130 would sit inside the valid band, so only the head-pitch gate
+        # stops it from being learned.
+        self.assertEqual(memory, {})
 
     def test_looking_down_uses_saved_head_up_anchor_instead_of_shrunken_anchor(self):
         frame = np.zeros((300, 300, 3), dtype=np.uint8)
-        ratio_memory = {12: 20.0 / 130.0}
-        anchor_memory = {12: 20.0}
+        ratio_memory = {resolve_memory_key(12): 20.0 / 130.0}
+        anchor_memory = {resolve_memory_key(12): 20.0}
         last_foot_memory = {}
         box = np.array([0.0, 0.0, 100.0, 220.0])
         landmarks = make_landmarks(
@@ -428,12 +516,19 @@ class AnatomicalRatioTrackingTest(unittest.TestCase):
 
         self.assertEqual(method, "anatomical_ratio")
         self.assertTrue(np.allclose(foot, np.array([50.0, 230.0])))
-        self.assertAlmostEqual(anchor_memory[12], 20.0)
+        # The shrunken head-down anchor must not overwrite the head-up one.
+        self.assertAlmostEqual(anchor_memory[resolve_memory_key(12)], 20.0)
 
     def test_impossible_jump_holds_previous_foot_point(self):
         frame = np.zeros((500, 500, 3), dtype=np.uint8)
         memory = {}
-        last_foot_memory = {10: {"point": np.array([50.0, 200.0]), "frame_index": 1}}
+        last_foot_memory = {
+            resolve_memory_key(10): {
+                "point": np.array([50.0, 200.0]),
+                "frame_index": 1,
+                "owner_track_id": 10,
+            }
+        }
         box = np.array([280.0, 0.0, 380.0, 240.0])
         landmarks = make_landmarks(
             crop_width=124,
@@ -463,7 +558,12 @@ class AnatomicalRatioTrackingTest(unittest.TestCase):
 
         self.assertEqual(method, "physics_hold")
         self.assertTrue(np.allclose(foot, np.array([50.0, 200.0])))
-        self.assertTrue(np.allclose(last_foot_memory[10]["point"], np.array([50.0, 200.0])))
+        self.assertTrue(
+            np.allclose(
+                last_foot_memory[resolve_memory_key(10)]["point"],
+                np.array([50.0, 200.0]),
+            )
+        )
 
     def test_ratio_is_stored_by_identity_when_track_changes(self):
         frame = np.zeros((300, 300, 3), dtype=np.uint8)
@@ -497,13 +597,10 @@ class AnatomicalRatioTrackingTest(unittest.TestCase):
             FakePoseResult(clear_view_landmarks),
             FakePoseResult(occluded_landmarks),
         ])
-        appearance_memory = AppearanceIdentityMemory(similarity_threshold=0.7, ttl_frames=100)
-        crop_a = np.full((120, 60, 3), (20, 80, 200), dtype=np.uint8)
-        crop_b = np.full((120, 60, 3), (20, 82, 198), dtype=np.uint8)
-
-        identity_a, _, _ = appearance_memory.assign(1, crop_a, 1)
-        identity_b, _, _ = appearance_memory.assign(99, crop_b, 5)
-        self.assertEqual(identity_a, identity_b)
+        # The master ID is supplied directly. Obtaining one through the real
+        # ReID memory would test the intake pipeline, not this behaviour, and
+        # that pipeline is already covered by test_reid_intake_lifecycle.
+        identity_id = 4321
 
         foot, method = estimate_mediapipe_foot_point(
             frame,
@@ -512,13 +609,19 @@ class AnatomicalRatioTrackingTest(unittest.TestCase):
             anatomical_ratio_memory=memory,
             last_foot_memory=last_foot_memory,
             track_id=1,
-            identity_id=identity_a,
+            identity_id=identity_id,
             frame_index=1,
         )
         self.assertEqual(method, "mediapipe")
         self.assertTrue(np.allclose(foot, np.array([50.0, 200.0])))
-        self.assertAlmostEqual(memory[identity_a], 20.0 / 130.0)
+        self.assertAlmostEqual(
+            memory[resolve_memory_key(1, identity_id=identity_id)], 20.0 / 130.0
+        )
+        self.assertNotIn(resolve_memory_key(1), memory)
 
+        # BoT-SORT renumbers the same person from track 1 to track 99. The
+        # identity-keyed memory is what lets them keep their learned ratio, so
+        # the occluded frame can still reconstruct a foot point.
         foot, method = estimate_mediapipe_foot_point(
             frame,
             box,
@@ -526,25 +629,11 @@ class AnatomicalRatioTrackingTest(unittest.TestCase):
             anatomical_ratio_memory=memory,
             last_foot_memory=last_foot_memory,
             track_id=99,
-            identity_id=identity_b,
+            identity_id=identity_id,
             frame_index=2,
         )
         self.assertEqual(method, "anatomical_ratio")
         self.assertTrue(np.allclose(foot, np.array([50.0, 155.0])))
-
-
-    def test_appearance_memory_reuses_stable_id_for_similar_crop_after_track_change(self):
-        memory = AppearanceIdentityMemory(similarity_threshold=0.7, ttl_frames=100)
-        crop_a = np.full((120, 60, 3), (20, 80, 200), dtype=np.uint8)
-        crop_b = np.full((120, 60, 3), (20, 82, 198), dtype=np.uint8)
-
-        identity_a, _, reidentified_a = memory.assign(1, crop_a, 1)
-        identity_b, similarity, reidentified_b = memory.assign(99, crop_b, 20)
-
-        self.assertEqual(identity_a, identity_b)
-        self.assertFalse(reidentified_a)
-        self.assertTrue(reidentified_b)
-        self.assertGreaterEqual(similarity, 0.7)
 
     def test_extrapolate_fourth_corner_uses_visible_edge_lines(self):
         known_corners = {

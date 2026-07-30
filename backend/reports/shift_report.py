@@ -14,7 +14,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from sqlalchemy import case, desc, func, select
 from sqlalchemy.orm import Session
 
-from models import MetricLog, PassengerObservation, SystemAlert
+from models import EvacueeIdentity, MetricLog, SystemAlert
 
 
 @dataclass(frozen=True)
@@ -163,17 +163,18 @@ def _get_demographics_for_run(db: Session, run_id: str | None, *, since: datetim
 
     statement = (
         select(
-            func.count(PassengerObservation.id).label("total_analyzed"),
-            func.coalesce(func.sum(case((PassengerObservation.gender == "male", 1), else_=0)), 0).label("males"),
-            func.coalesce(func.sum(case((PassengerObservation.gender == "female", 1), else_=0)), 0).label("females"),
+            func.count(EvacueeIdentity.id).label("total_analyzed"),
+            func.coalesce(func.sum(case((EvacueeIdentity.gender == "male", 1), else_=0)), 0).label("males"),
+            func.coalesce(func.sum(case((EvacueeIdentity.gender == "female", 1), else_=0)), 0).label("females"),
             func.coalesce(
-                func.sum(case((PassengerObservation.gender.not_in(["male", "female"]), 1), else_=0)),
+                func.sum(case((EvacueeIdentity.gender.not_in(["male", "female"]), 1), else_=0)),
                 0,
             ).label("unknown"),
-            func.coalesce(func.sum(case((PassengerObservation.age < 18, 1), else_=0)), 0).label("minors"),
+            func.coalesce(func.sum(case((EvacueeIdentity.age < 18, 1), else_=0)), 0).label("minors"),
         )
-        .where(PassengerObservation.run_id == run_id)
-        .where(PassengerObservation.timestamp >= since)
+        .where(EvacueeIdentity.run_id == run_id)
+        .where(EvacueeIdentity.last_seen_at >= since)
+        .where(EvacueeIdentity.role == "evacuee")
     )
     row = db.execute(statement).one()
     return {
