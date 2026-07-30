@@ -1,4 +1,5 @@
 import hashlib
+import copy
 import json
 import os
 import pickle
@@ -477,6 +478,7 @@ class AppearanceIdentityMemory:
         morph_threshold=0.08,
         max_gallery_size=5,
         db_path=None,
+        persistence_store=None,
         intake_frames=5,
         gallery_update_interval_frames=DEFAULT_REID_SEMANTIC_COOLDOWN_FRAMES,
         evidence_dir=None,
@@ -517,6 +519,7 @@ class AppearanceIdentityMemory:
         self.reid_extractor = reid_extractor
         self.verbose = bool(verbose)
         self.db_path = Path(db_path) if db_path else None
+        self.persistence_store = persistence_store
         self.evidence_dir = Path(evidence_dir) if evidence_dir else None
         self.intake_frames = max(1, int(intake_frames))
         self.intake_delay_seconds = max(0.0, float(intake_delay_seconds))
@@ -696,14 +699,24 @@ class AppearanceIdentityMemory:
         }
 
     def load_database(self):
-        if self.db_path is None or not self.db_path.exists():
-            return
-
-        try:
-            with self.db_path.open("rb") as handle:
-                payload = pickle.load(handle)
-        except Exception as exc:
-            raise RuntimeError(f"Unable to load ReID database {self.db_path}: {exc}") from exc
+        if self.persistence_store is not None:
+            try:
+                payload = self.persistence_store.load_payload()
+            except Exception as exc:
+                print(f"Unable to load ReID identities from backend: {exc}. Starting with an empty gallery.")
+                return
+            evidence_enabled = False
+            source_label = "FastAPI/SQLite backend"
+        else:
+            if self.db_path is None or not self.db_path.exists():
+                return
+            try:
+                with self.db_path.open("rb") as handle:
+                    payload = pickle.load(handle)
+            except Exception as exc:
+                raise RuntimeError(f"Unable to load ReID database {self.db_path}: {exc}") from exc
+            evidence_enabled = bool(payload.get("evidence_enabled", False)) if isinstance(payload, dict) else False
+            source_label = str(self.db_path)
 
         if not isinstance(payload, dict) or payload.get("schema_version") != self.SCHEMA_VERSION:
             raise RuntimeError(
@@ -711,7 +724,6 @@ class AppearanceIdentityMemory:
                 "Delete or move the old database before starting this version."
             )
         loaded_identities = payload.get("identities")
-        evidence_enabled = bool(payload.get("evidence_enabled", False))
         if not isinstance(loaded_identities, dict):
             raise RuntimeError(f"ReID database {self.db_path} has no identities dictionary.")
 
@@ -769,9 +781,22 @@ class AppearanceIdentityMemory:
         with self._lock:
             self.identities = identities
             self.next_identity_id = max(self.identities.keys(), default=0) + 1
-        print(f"Loaded {len(identities)} five-slot ReID identities from {self.db_path}")
+        print(f"Loaded {len(identities)} five-slot ReID identities from {source_label}")
 
-    def save_database(self):
+    def save_database(self, identity_id=None):
+        if self.persistence_store is not None:
+            if identity_id is None:
+                return
+            with self._lock:
+                record = self.identities.get(int(identity_id))
+                snapshot = copy.deepcopy(record) if record is not None else None
+            if snapshot is None:
+                return
+            try:
+                self.persistence_store.save_identity(int(identity_id), snapshot)
+            except Exception as exc:
+                print(f"Unable to save ReID identity {identity_id} to backend: {exc}")
+            return
         if self.db_path is None:
             return
         with self._lock:
@@ -1902,7 +1927,7 @@ class AppearanceIdentityMemory:
             self.pending_intake.pop(key, None)
             self.shadow_tracks.pop(key, None)
 
-        self.save_database()
+        self.save_database(identity_id)
 
         if demographics_task is not None:
             self._ensure_demographics_worker()
@@ -1915,7 +1940,7 @@ class AppearanceIdentityMemory:
                     if record is not None:
                         record["age"] = "Unknown"
                         record["gender"] = "Unknown"
-                self.save_database()
+                self.save_database(identity_id)
 
         if self.verbose:
             if reidentified:
@@ -1955,7 +1980,7 @@ class AppearanceIdentityMemory:
                 feature_space_id,
             )
             record["gallery"][slot_name] = slot
-        self.save_database()
+        self.save_database(identity_id)
         if self.verbose:
             print(f"ReID: filled {slot_name} for Master {identity_id}")
 
@@ -2048,7 +2073,7 @@ class AppearanceIdentityMemory:
                     if record is not None and record.get("role") == "evacuee":
                         record["age"] = age
                         record["gender"] = gender
-                self.save_database()
+                self.save_database(task["identity_id"])
             except Exception as exc:
                 print(f"Demographics analysis failed: {exc}")
                 if isinstance(task, dict):
@@ -2057,7 +2082,7 @@ class AppearanceIdentityMemory:
                         if record is not None:
                             record["age"] = "Unknown"
                             record["gender"] = "Unknown"
-                    self.save_database()
+                    self.save_database(task.get("identity_id"))
             finally:
                 self._demographics_queue.task_done()
 
@@ -2081,3 +2106,8 @@ class AppearanceIdentityMemory:
         if self._demographics_worker is not None and self._demographics_worker.is_alive():
             self._demographics_queue.put(self._stop_token)
             self._demographics_worker.join(timeout=timeout)
+        if self.persistence_store is not None:
+            with self._lock:
+                identity_ids = list(self.identities)
+            for identity_id in identity_ids:
+                self.save_database(identity_id)

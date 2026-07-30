@@ -50,6 +50,7 @@ from reid_memory import (
     AppearanceIdentityMemory,
     TransReIDFeatureExtractor,
 )
+from reid_backend_store import ReidBackendStore
 
 # import yolo11n for human detection(from cv enginner mikail) cv2 for tranformation functions and numpy for the geometric coordinate matrices
 
@@ -387,6 +388,7 @@ def parse_args():
     parser.add_argument("--reid-checkpoint", default="transreid_msmt17.pth", help="Path to a TransReID checkpoint for appearance feature extraction.")
     parser.add_argument("--fastreid-root", default="fast-reid", help="Path to the extracted fast-reid folder used by the TransReID checkpoint.")
     parser.add_argument("--reid-db", default="evacuee_database_v7.pkl", help="Persistent ReID gallery database file.")
+    parser.add_argument("--reid-api-url", default=None, help="FastAPI base URL used to persist ReID identities in SQLite instead of pickle.")
     parser.add_argument("--no-persistent-reid-db", action="store_true", help="Keep ReID identities in memory only for this run.")
     parser.add_argument("--reid-intake-frames", type=int, default=5, help="Rapid crops averaged into the temporary matching query; the best crop and its own vector become baseline.")
     parser.add_argument("--reid-gallery-update-interval-frames", type=int, default=DEFAULT_REID_SEMANTIC_COOLDOWN_FRAMES, help="Frames to wait after successfully queuing a missing semantic gallery view.")
@@ -945,6 +947,8 @@ def main():
     args = parse_args()
     if not 0.0 < args.iou <= 1.0:
         raise ValueError("--iou must be greater than 0 and at most 1.")
+    if args.reid_api_url and args.no_reid_evidence:
+        raise ValueError("--reid-api-url requires saved ReID evidence images; remove --no-reid-evidence.")
     tracker_config_path = Path(args.tracker_config).expanduser()
     if not tracker_config_path.is_absolute():
         tracker_config_path = Path(__file__).resolve().parent / tracker_config_path
@@ -959,13 +963,22 @@ def main():
         reid_extractor = TransReIDFeatureExtractor(Path(args.reid_checkpoint), device=args.reid_device, fastreid_root=args.fastreid_root)
         if not reid_extractor.is_available():
             print("Appearance ReID will use color histograms only. IDs may change more easily after a person disappears.")
+        reid_backend_store = None
+        if args.reid_api_url and not args.no_persistent_reid_db:
+            reid_backend_store = ReidBackendStore(
+                args.reid_api_url,
+                run_id=args.run_id,
+                timeout=args.http_timeout,
+            )
+            print(f"ReID persistence: FastAPI/SQLite at {args.reid_api_url}")
         shared_appearance_memory = AppearanceIdentityMemory(
             similarity_threshold=args.reid_similarity_threshold,
             distance_threshold=args.reid_distance_threshold,
             ttl_frames=args.reid_memory_ttl_frames,
             ema_alpha=DEFAULT_REID_EMA_ALPHA,
             reid_extractor=reid_extractor,
-            db_path=None if args.no_persistent_reid_db else args.reid_db,
+            db_path=None if args.no_persistent_reid_db or reid_backend_store is not None else args.reid_db,
+            persistence_store=reid_backend_store,
             intake_frames=args.reid_intake_frames,
             gallery_update_interval_frames=args.reid_gallery_update_interval_frames,
             evidence_dir=None if args.no_reid_evidence else args.reid_evidence_dir,

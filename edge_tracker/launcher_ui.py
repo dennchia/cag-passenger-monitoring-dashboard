@@ -44,6 +44,7 @@ class LauncherApp(tk.Tk):
         self.fusion_distance = tk.StringVar(value="50")
         self.mqtt_broker = tk.StringVar(value="192.168.50.45")
         self.mqtt_port = tk.StringVar(value="1883")
+        self.reid_api_url = tk.StringVar(value="http://localhost:8000")
 
         self.command_preview = tk.StringVar(value="")
         self._build_ui()
@@ -131,6 +132,7 @@ class LauncherApp(tk.Tk):
         self._entry(advanced, "Fusion distance cm", self.fusion_distance, 4, width=12)
         self._entry(advanced, "MQTT broker", self.mqtt_broker, 5)
         self._entry(advanced, "MQTT port", self.mqtt_port, 6, width=12)
+        self._entry(advanced, "ReID backend URL", self.reid_api_url, 7)
 
         preview_frame = ttk.LabelFrame(container, text="Command Preview", padding=12)
         preview_frame.pack(fill="both", expand=True, pady=8)
@@ -162,6 +164,7 @@ class LauncherApp(tk.Tk):
             self.fusion_distance,
             self.mqtt_broker,
             self.mqtt_port,
+            self.reid_api_url,
         ]:
             variable.trace_add("write", lambda *_args: self._refresh_preview())
 
@@ -233,6 +236,8 @@ class LauncherApp(tk.Tk):
                 command.extend(["--reid-device", "cuda:1"])
             else:
                 command.extend(["--reid-device", "cpu"])
+            if self.reid_api_url.get().strip():
+                command.extend(["--reid-api-url", self.reid_api_url.get().strip()])
 
         if selected == ["1"]:
             command.extend(["--source", self.source_1.get().strip()])

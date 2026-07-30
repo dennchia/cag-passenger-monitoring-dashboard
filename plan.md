@@ -187,18 +187,23 @@ The Operations tab is intentionally simpler than the old V0 view because V1 firs
 
 The Passenger Assistance tab supports the evacuation story where a passenger may ask staff for help finding a family member.
 
-The external pipeline is expected to send:
+The first Passenger Assistance implementation accepted one crop per observation. The integrated ReID version now groups evidence by a unique master identity and supports a progressively filled five-view gallery:
 
-- person crop image
-- estimated age
-- estimated gender
-- camera ID
-- optional run ID
-- optional track ID
-- optional age/gender confidence
-- optional timestamp
+- baseline intake image
+- front image
+- back image
+- left-side image
+- right-side image
+- model-estimated age and gender
+- run ID and ReID master identity ID
+- last camera and capture timestamps
+- ReID feature vectors used to restore the gallery after a restart
 
-The dashboard displays these as assistance logs. Staff can filter observations to narrow the manual search.
+The dashboard displays one card per evacuee identity rather than one card per image. The primary thumbnail uses Front when available, then the highest-quality side view, then Baseline, then Back. Selecting the thumbnail opens a five-slot modal and clearly marks any views that have not yet been captured.
+
+FastAPI is the only owner of the deployment SQLite database. The CV pipeline uploads infrequent gallery images and embeddings through HTTP, while MQTT remains responsible for lightweight counts, coordinates, and alerts. SQLite stores identity metadata, image references, and float32 embedding BLOBs; the image files remain in ignored backend upload storage.
+
+The legacy `PassengerObservation` API remains available as a fallback during integration. New Passenger Assistance counts and filters use unique `EvacueeIdentity` rows so five views never count as five people.
 
 Important privacy boundary:
 
@@ -226,6 +231,13 @@ GET    /api/observations?gender=&min_age=&max_age=&camera_id=&run_id=&limit=
 GET    /api/observations/summary?run_id=
 POST   /api/observations
 DELETE /api/observations
+GET    /api/evacuees?gender=&min_age=&max_age=&camera_id=&run_id=&limit=
+GET    /api/evacuees/summary?run_id=
+GET    /api/evacuees/{evacuee_id}
+PUT    /api/evacuees/by-master/{run_id}/{master_identity_id}
+PUT    /api/evacuees/by-master/{run_id}/{master_identity_id}/views/{view_type}
+GET    /api/evacuees/reid-gallery?run_id=
+DELETE /api/evacuees?run_id=
 ```
 
 ### V1 Boundaries

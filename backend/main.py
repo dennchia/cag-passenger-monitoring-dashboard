@@ -14,6 +14,12 @@ import crud
 from camera import CameraStreamer, camera_manager, mjpeg_frame_generator
 from config import settings
 from database import get_db, init_db
+from evacuees.router import router as evacuee_router
+from evacuees.storage import (
+    PUBLIC_UPLOAD_PREFIX as EVACUEE_UPLOAD_PREFIX,
+    UPLOAD_DIR as EVACUEE_UPLOAD_DIR,
+    ensure_upload_dir as ensure_evacuee_upload_dir,
+)
 from models import (
     MetricLogCreate,
     MetricLogRead,
@@ -42,6 +48,7 @@ from tactical_state import tactical_store
 async def lifespan(app: FastAPI):
     init_db()
     ensure_upload_dir()
+    ensure_evacuee_upload_dir()
     camera_manager.start_all()
     mqtt_bridge.start()
     try:
@@ -63,6 +70,9 @@ app.add_middleware(
 
 ensure_upload_dir()
 app.mount(PUBLIC_UPLOAD_PREFIX, StaticFiles(directory=UPLOAD_DIR), name="observation-images")
+ensure_evacuee_upload_dir()
+app.mount(EVACUEE_UPLOAD_PREFIX, StaticFiles(directory=EVACUEE_UPLOAD_DIR), name="evacuee-images")
+app.include_router(evacuee_router)
 
 FRONTEND_DIST_PATH = settings.frontend_dist_path
 FRONTEND_INDEX_PATH = FRONTEND_DIST_PATH / "index.html"

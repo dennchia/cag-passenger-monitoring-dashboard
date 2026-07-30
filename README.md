@@ -179,6 +179,13 @@ GET  /api/observations?gender=&min_age=&max_age=&camera_id=&run_id=
 GET  /api/observations/summary?run_id=
 POST /api/observations
 DELETE /api/observations
+GET  /api/evacuees?gender=&min_age=&max_age=&camera_id=&run_id=
+GET  /api/evacuees/summary?run_id=
+GET  /api/evacuees/{evacuee_id}
+PUT  /api/evacuees/by-master/{run_id}/{master_identity_id}
+PUT  /api/evacuees/by-master/{run_id}/{master_identity_id}/views/{view_type}
+GET  /api/evacuees/reid-gallery?run_id=
+DELETE /api/evacuees?run_id=
 ```
 
 Metrics and alerts return latest global entries when `run_id` is omitted.
@@ -198,9 +205,19 @@ The dashboard camera selector changes the live video feed only; it does not chan
 The dashboard treats `people_count` as inside occupancy. Points inside the calibrated tent render as red dots,
 while visible points outside the tent render as cyan context dots in a compressed outside border.
 
-Large person crop images still use HTTP multipart upload through `POST /api/observations`.
+Large person crop images still use HTTP multipart uploads. MQTT is not used for gallery images or ReID embeddings.
 
-Passenger observations are an assistance filter only. The dashboard stores model-provided age/gender estimates and person crop images from an external pipeline; it does not run MiVOLO, identify people, or perform face recognition.
+Passenger Assistance now groups evidence by unique ReID master identity. Each evacuee can have five progressively filled gallery slots: `baseline`, `front`, `back`, `left_side`, and `right_side`. The card thumbnail prefers Front, then the sharpest side, then Baseline, then Back. Clicking it opens all five slots for manual comparison.
+
+FastAPI owns the SQLite database and image upload storage. For deployment, start the tracker with:
+
+```text
+--reid-api-url http://127.0.0.1:8000
+```
+
+If the CV pipeline runs on another PC, replace `127.0.0.1` with the deployment server's LAN IP. The tracker then persists identity metadata and float32 gallery embeddings in SQLite through FastAPI instead of its pickle fallback. The old `--reid-db` path remains available for standalone development runs where no backend URL is configured.
+
+Passenger evidence is an assistance filter only. The dashboard stores model-provided age/gender estimates and ReID gallery crops; it does not establish a person's real identity or perform face recognition. Staff must manually verify the images.
 
 Example observation upload:
 
@@ -223,7 +240,7 @@ cd "C:\Users\aveng\Documents\Codex\CAG (MP)\backend"
 .\.venv\Scripts\python.exe seed_demo_data.py --reset-observations
 ```
 
-This creates generated person-crop placeholders, metrics, and alerts using:
+This creates generated five-view identity galleries with complete and missing-angle examples, legacy person-crop placeholders, metrics, and alerts using:
 
 ```text
 run_id = demo_assistance_001

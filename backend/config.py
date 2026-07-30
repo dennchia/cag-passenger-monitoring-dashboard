@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     camera_jpeg_quality: int = Field(80, validation_alias="CAMERA_JPEG_QUALITY")
     sqlite_db_path: str = Field("./passenger_monitoring.db", validation_alias="SQLITE_DB_PATH")
     observation_upload_dir: str = Field("./uploads/observations", validation_alias="OBSERVATION_UPLOAD_DIR")
+    evacuee_upload_dir: str = Field("./uploads/evacuees", validation_alias="EVACUEE_UPLOAD_DIR")
     frontend_dist_dir: str = Field("../frontend/dist", validation_alias="FRONTEND_DIST_DIR")
     zone_capacities_json: str = Field('{"cam_1":150,"cam_2":150}', validation_alias="ZONE_CAPACITIES_JSON")
     mqtt_enabled: bool = Field(False, validation_alias="MQTT_ENABLED")
@@ -90,6 +91,13 @@ class Settings(BaseSettings):
     @property
     def observation_upload_path(self) -> Path:
         configured = Path(self.observation_upload_dir)
+        if configured.is_absolute():
+            return configured
+        return Path(__file__).resolve().parent / configured
+
+    @property
+    def evacuee_upload_path(self) -> Path:
+        configured = Path(self.evacuee_upload_dir)
         if configured.is_absolute():
             return configured
         return Path(__file__).resolve().parent / configured
