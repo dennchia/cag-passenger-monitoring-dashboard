@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 import json
+import os
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     camera_url: str = Field(
-        "rtsp://username:password@192.168.50.192:554/Streaming/Channels/101",
+        "",
         validation_alias="CAMERA_URL",
     )
     camera_urls: str = Field("", validation_alias="CAMERA_URLS")
@@ -19,6 +20,7 @@ class Settings(BaseSettings):
     camera_jpeg_quality: int = Field(80, validation_alias="CAMERA_JPEG_QUALITY")
     sqlite_db_path: str = Field("./passenger_monitoring.db", validation_alias="SQLITE_DB_PATH")
     observation_upload_dir: str = Field("./uploads/observations", validation_alias="OBSERVATION_UPLOAD_DIR")
+    evacuee_upload_dir: str = Field("./uploads/evacuees", validation_alias="EVACUEE_UPLOAD_DIR")
     frontend_dist_dir: str = Field("../frontend/dist", validation_alias="FRONTEND_DIST_DIR")
     zone_capacities_json: str = Field('{"cam_1":150,"cam_2":150}', validation_alias="ZONE_CAPACITIES_JSON")
     mqtt_enabled: bool = Field(False, validation_alias="MQTT_ENABLED")
@@ -30,6 +32,20 @@ class Settings(BaseSettings):
     mqtt_topic_tactical: str = Field("cag/tactical", validation_alias="MQTT_TOPIC_TACTICAL")
     mqtt_topic_alerts: str = Field("cag/alerts", validation_alias="MQTT_TOPIC_ALERTS")
     mqtt_metric_log_interval_seconds: float = Field(1.0, validation_alias="MQTT_METRIC_LOG_INTERVAL_SECONDS")
+    cv_enabled: bool = Field(True, validation_alias="CV_ENABLED")
+    cv_worker_python: str = Field(
+        "../.venv-cv-linux/bin/python", validation_alias="CV_WORKER_PYTHON"
+    )
+    cv_worker_script: str = Field(
+        "../edge_tracker/cv_worker.py", validation_alias="CV_WORKER_SCRIPT"
+    )
+    cv_worker_log: str = Field(
+        "../LogEvidance/cv_service.jsonl", validation_alias="CV_WORKER_LOG"
+    )
+    cv_control_allow_lan: bool = Field(False, validation_alias="CV_CONTROL_ALLOW_LAN")
+    cv_control_token: SecretStr = Field(
+        default=SecretStr(""), validation_alias="CV_CONTROL_TOKEN"
+    )
     cors_origins: str = Field(
         "http://localhost:5173,http://localhost:3000",
         validation_alias="CORS_ORIGINS",
@@ -95,11 +111,41 @@ class Settings(BaseSettings):
         return Path(__file__).resolve().parent / configured
 
     @property
+    def evacuee_upload_path(self) -> Path:
+        configured = Path(self.evacuee_upload_dir)
+        if configured.is_absolute():
+            return configured
+        return Path(__file__).resolve().parent / configured
+
+    @property
     def frontend_dist_path(self) -> Path:
         configured = Path(self.frontend_dist_dir)
         if configured.is_absolute():
             return configured
         return Path(__file__).resolve().parent / configured
+
+    def _backend_relative_path(self, configured_value: str) -> Path:
+        configured = Path(configured_value).expanduser()
+        if configured.is_absolute():
+            return Path(os.path.abspath(configured))
+
+        # Keep the final path lexical instead of resolving symlinks. Python
+        # virtual-environment executables are normally symlinks to the base
+        # interpreter; resolving one before launching it bypasses the venv and
+        # loads packages from the base installation instead.
+        return Path(os.path.abspath(Path(__file__).resolve().parent / configured))
+
+    @property
+    def cv_worker_python_path(self) -> Path:
+        return self._backend_relative_path(self.cv_worker_python)
+
+    @property
+    def cv_worker_script_path(self) -> Path:
+        return self._backend_relative_path(self.cv_worker_script)
+
+    @property
+    def cv_worker_log_path(self) -> Path:
+        return self._backend_relative_path(self.cv_worker_log)
 
 
 @lru_cache

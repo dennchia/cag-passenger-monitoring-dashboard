@@ -1,36 +1,11 @@
-import { AlertTriangle, Camera, Clock, RefreshCw, Search, ShieldCheck, Trash2, UserRound } from "lucide-react";
+import { AlertTriangle, RefreshCw, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { endpoints, fetchJson, resolveApiUrl, withQuery } from "../lib/api.js";
+import EvacueeCard from "../features/passenger-assistance/EvacueeCard.jsx";
+import EvacueeGalleryModal from "../features/passenger-assistance/EvacueeGalleryModal.jsx";
+import { AGE_GROUP_FILTERS, selectedAgeGroup } from "../features/passenger-assistance/ageGroups.js";
+import { endpoints, fetchJson, withQuery } from "../lib/api.js";
 
 const POLL_MS = 3000;
-const MIN_AGE = 0;
-const MAX_AGE = 120;
-const BLOCKED_AGE_KEYS = new Set(["e", "E", "+", "-", ".", ","]);
-
-function formatTime(value) {
-  if (!value) return "Unknown";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function formatAge(value) {
-  const age = Number(value);
-  if (!Number.isFinite(age)) return "Unknown";
-  return Number.isInteger(age) ? String(age) : age.toFixed(1);
-}
-
-function formatConfidence(value) {
-  const confidence = Number(value);
-  if (!Number.isFinite(confidence)) return "Not provided";
-  return `${Math.round(confidence * 100)}%`;
-}
 
 const initialFilters = {
   gender: "",
@@ -39,25 +14,6 @@ const initialFilters = {
   camera_id: "",
   run_id: "",
 };
-
-function normalizeAgeInput(value) {
-  const rawValue = String(value).trim();
-  if (!rawValue) return "";
-  if (rawValue.startsWith("-")) return String(MIN_AGE);
-
-  const digitMatch = rawValue.match(/\d+/);
-  if (!digitMatch) return "";
-
-  const age = Number(digitMatch[0].slice(0, 3));
-  if (!Number.isFinite(age)) return "";
-  return String(Math.min(MAX_AGE, Math.max(MIN_AGE, age)));
-}
-
-function preventFunnyAgeKeys(event) {
-  if (BLOCKED_AGE_KEYS.has(event.key)) {
-    event.preventDefault();
-  }
-}
 
 const emptySummary = {
   total_analyzed: 0,
@@ -80,7 +36,7 @@ function DemographicsSummary({ summary }) {
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4">
           <div className="text-sm font-bold uppercase tracking-wide text-slate-400">Total Analyzed</div>
           <div className="mt-1 text-6xl font-bold leading-none text-red-500">{summary.total_analyzed}</div>
-          <p className="mt-2 text-sm text-slate-400">Run-level baseline from uploaded person crops.</p>
+          <p className="mt-2 text-sm text-slate-400">Run-level baseline from unique ReID evacuee identities.</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           {items.map((item) => (
@@ -110,25 +66,26 @@ function DemographicsSummary({ summary }) {
 
 export default function AssistanceView({ cameras = [] }) {
   const [filters, setFilters] = useState(initialFilters);
-  const [observations, setObservations] = useState([]);
+  const [evacuees, setEvacuees] = useState([]);
+  const [selectedEvacuee, setSelectedEvacuee] = useState(null);
   const [summary, setSummary] = useState(emptySummary);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [summaryError, setSummaryError] = useState("");
 
-  const queryUrl = useMemo(() => withQuery(endpoints.observations, filters), [filters]);
+  const queryUrl = useMemo(() => withQuery(endpoints.evacuees, filters), [filters]);
   const summaryUrl = useMemo(
-    () => withQuery(endpoints.observationsSummary, { run_id: filters.run_id }),
+    () => withQuery(endpoints.evacueesSummary, { run_id: filters.run_id }),
     [filters.run_id],
   );
 
-  async function loadObservations() {
+  async function loadEvacuees() {
     try {
       const data = await fetchJson(queryUrl);
-      setObservations(Array.isArray(data) ? data : []);
+      setEvacuees(Array.isArray(data) ? data : []);
       setError("");
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Could not load observations.");
+      setError(nextError instanceof Error ? nextError.message : "Could not load evacuees.");
     } finally {
       setIsLoading(false);
     }
@@ -141,11 +98,11 @@ export default function AssistanceView({ cameras = [] }) {
       try {
         const data = await fetchJson(queryUrl);
         if (!isMounted) return;
-        setObservations(Array.isArray(data) ? data : []);
+        setEvacuees(Array.isArray(data) ? data : []);
         setError("");
       } catch (nextError) {
         if (!isMounted) return;
-        setError(nextError instanceof Error ? nextError.message : "Could not load observations.");
+        setError(nextError instanceof Error ? nextError.message : "Could not load evacuees.");
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -176,41 +133,38 @@ export default function AssistanceView({ cameras = [] }) {
     }
 
     loadSummary();
+    const interval = window.setInterval(loadSummary, POLL_MS);
     return () => {
       isMounted = false;
+      window.clearInterval(interval);
     };
   }, [summaryUrl]);
+
+  useEffect(() => {
+    setSelectedEvacuee((current) => {
+      if (!current) return null;
+      return evacuees.find((evacuee) => evacuee.id === current.id) || current;
+    });
+  }, [evacuees]);
 
   function updateFilter(key, value) {
     setFilters((current) => ({ ...current, [key]: value }));
   }
 
-  function updateAgeFilter(key, value) {
-    const normalizedAge = normalizeAgeInput(value);
-    setFilters((current) => {
-      const next = { ...current, [key]: normalizedAge };
-      const minAge = next.min_age === "" ? null : Number(next.min_age);
-      const maxAge = next.max_age === "" ? null : Number(next.max_age);
-
-      if (minAge !== null && maxAge !== null && minAge > maxAge) {
-        if (key === "min_age") {
-          next.max_age = next.min_age;
-        } else {
-          next.min_age = next.max_age;
-        }
-      }
-
-      return next;
-    });
+  function updateAgeGroup(value) {
+    const group = AGE_GROUP_FILTERS.find((option) => option.value === value) || AGE_GROUP_FILTERS[0];
+    setFilters((current) => ({ ...current, min_age: group.minAge, max_age: group.maxAge }));
   }
 
   async function clearDemoLogs() {
-    const confirmed = window.confirm("Clear all saved passenger assistance demo observations and crop images?");
+    const confirmed = window.confirm("Clear all saved evacuee identities, gallery views, and legacy demo observations?");
     if (!confirmed) return;
 
     try {
+      await fetchJson(endpoints.evacuees, { method: "DELETE" });
       await fetchJson(endpoints.observations, { method: "DELETE" });
-      setObservations([]);
+      setEvacuees([]);
+      setSelectedEvacuee(null);
       setSummary(emptySummary);
       setError("");
       setSummaryError("");
@@ -237,14 +191,14 @@ export default function AssistanceView({ cameras = [] }) {
             </div>
             <h2 className="text-2xl font-black text-white">Passenger Assistance</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-              Filter model-estimated age and gender observations from person crops. This view helps staff narrow a
-              manual check; it does not identify people or perform face recognition.
+              Filter unique ReID evacuee records by model-estimated age group, gender, and last camera. Open a thumbnail
+              to compare the available front, side, back, and baseline views manually.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={loadObservations}
+              onClick={loadEvacuees}
               className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-bold text-slate-200 transition hover:border-slate-500 hover:text-white"
             >
               <RefreshCw className="h-4 w-4" />
@@ -261,7 +215,7 @@ export default function AssistanceView({ cameras = [] }) {
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="grid gap-1 text-sm">
             <span className="font-bold text-slate-300">Gender</span>
             <select
@@ -277,33 +231,18 @@ export default function AssistanceView({ cameras = [] }) {
           </label>
 
           <label className="grid gap-1 text-sm">
-            <span className="font-bold text-slate-300">Min Age</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={3}
-              value={filters.min_age}
-              onKeyDown={preventFunnyAgeKeys}
-              onChange={(event) => updateAgeFilter("min_age", event.target.value)}
-              placeholder="0"
+            <span className="font-bold text-slate-300">Age Group</span>
+            <select
+              value={selectedAgeGroup(filters)}
+              onChange={(event) => updateAgeGroup(event.target.value)}
               className="h-10 rounded-md border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-300"
-            />
-          </label>
-
-          <label className="grid gap-1 text-sm">
-            <span className="font-bold text-slate-300">Max Age</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={3}
-              value={filters.max_age}
-              onKeyDown={preventFunnyAgeKeys}
-              onChange={(event) => updateAgeFilter("max_age", event.target.value)}
-              placeholder="120"
-              className="h-10 rounded-md border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-300"
-            />
+            >
+              {AGE_GROUP_FILTERS.map((group) => (
+                <option key={group.value || "any"} value={group.value}>
+                  {group.label}
+                </option>
+              ))}
+            </select>
           </label>
 
           <label className="grid gap-1 text-sm">
@@ -333,9 +272,7 @@ export default function AssistanceView({ cameras = [] }) {
             />
           </label>
         </div>
-        <p className="mt-3 text-xs text-slate-500">
-          Age filters accept whole numbers from 0 to 120. Min and max stay aligned automatically.
-        </p>
+        <p className="mt-3 text-xs text-slate-500">Age groups are based on the model estimate and may require manual verification.</p>
       </div>
 
       {error ? (
@@ -347,63 +284,15 @@ export default function AssistanceView({ cameras = [] }) {
       <div className="flex items-center justify-between gap-3">
         <div className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-300">
           <Search className="h-4 w-4 text-cyan-300" />
-          {isLoading ? "Loading observations" : `${observations.length} matching observations`}
+          {isLoading ? "Loading evacuees" : `${evacuees.length} matching evacuees`}
         </div>
         <div className="text-xs text-slate-500">Updated every 3 seconds</div>
       </div>
 
-      {observations.length ? (
+      {evacuees.length ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {observations.map((observation) => (
-            <article
-              key={observation.id}
-              className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900/70"
-            >
-              <div className="aspect-[4/5] bg-slate-950">
-                <img
-                  src={resolveApiUrl(observation.image_url)}
-                  alt={`Passenger crop from ${observation.camera_id}`}
-                  className="h-full w-full object-cover"
-                />
-              </div>
-              <div className="grid gap-3 p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-2xl font-black text-white">{formatAge(observation.age)}</div>
-                    <div className="text-xs font-bold uppercase tracking-wide text-slate-500">estimated age</div>
-                  </div>
-                  <div className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-sm font-bold capitalize text-cyan-100">
-                    {observation.gender || "unknown"}
-                  </div>
-                </div>
-
-                <div className="grid gap-2 text-sm text-slate-300">
-                  <div className="flex items-center gap-2">
-                    <Camera className="h-4 w-4 text-slate-500" />
-                    <span>{observation.camera_id}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-slate-500" />
-                    <span>{formatTime(observation.timestamp)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <UserRound className="h-4 w-4 text-slate-500" />
-                    <span>Track {observation.track_id || "not provided"}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 border-t border-slate-800 pt-3 text-xs">
-                  <div>
-                    <div className="font-bold text-slate-300">{formatConfidence(observation.age_confidence)}</div>
-                    <div className="text-slate-500">age conf.</div>
-                  </div>
-                  <div>
-                    <div className="font-bold text-slate-300">{formatConfidence(observation.gender_confidence)}</div>
-                    <div className="text-slate-500">gender conf.</div>
-                  </div>
-                </div>
-              </div>
-            </article>
+          {evacuees.map((evacuee) => (
+            <EvacueeCard key={evacuee.id} evacuee={evacuee} onOpen={setSelectedEvacuee} />
           ))}
         </div>
       ) : (
@@ -411,12 +300,15 @@ export default function AssistanceView({ cameras = [] }) {
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-800">
             <Search className="h-5 w-5 text-slate-400" />
           </div>
-          <div className="text-lg font-bold text-white">No matching observations</div>
+          <div className="text-lg font-bold text-white">No matching evacuees</div>
           <p className="mt-1 text-sm text-slate-400">
-            Observations will appear here after the processing pipeline posts age, gender, and a person crop.
+            Evacuees will appear after the ReID pipeline creates a master identity and uploads its gallery views.
           </p>
         </div>
       )}
+      {selectedEvacuee ? (
+        <EvacueeGalleryModal evacuee={selectedEvacuee} onClose={() => setSelectedEvacuee(null)} />
+      ) : null}
     </section>
   );
 }

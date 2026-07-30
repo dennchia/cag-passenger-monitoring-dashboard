@@ -1,14 +1,42 @@
+import os
+import shlex
+import shutil
+import signal
 import subprocess
 import sys
+import threading
+import time
 import tkinter as tk
+from datetime import datetime
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import messagebox, simpledialog, ttk
 
-from constants import DEFAULT_RTSP_URL, DEFAULT_TRACKER_CONFIG_PATH, DEFAULT_YOLO_NMS_IOU
+from constants import (
+    DEFAULT_CROSS_CAMERA_MAX_SKEW_SECONDS,
+    DEFAULT_FUSION_DISTANCE_CM,
+    DEFAULT_TACTICAL_MAP_GRID_COLUMNS,
+    DEFAULT_TACTICAL_MAP_GRID_ROWS,
+    DEFAULT_TACTICAL_MAP_SIZE_CM,
+    DEFAULT_REID_DISTANCE_THRESHOLD,
+    DEFAULT_TRACKER_CONFIG_PATH,
+    DEFAULT_YOLO_NMS_IOU,
+)
+from launch_config import (
+    build_tracker_arguments,
+    default_launch_values,
+    redact_tracker_arguments,
+)
+from session_lock import CvRuntimeBusyError, CvRuntimeLock
 
 
 ROOT = Path(__file__).resolve().parent
 SCRIPT_PATH = ROOT / "main_tracker.py"
+PROJECT_ROOT = ROOT.parent
+BACKEND_DIRECTORY = PROJECT_ROOT / "backend"
+DATABASE_PATH = BACKEND_DIRECTORY / "passenger_monitoring.db"
+REID_EVIDENCE_DIRECTORY = ROOT / "angle_evidence_v7"
+LOG_EVIDENCE_DIRECTORY = ROOT.parent / "LogEvidance"
+SCREEN_RECORDING_DIRECTORY = Path.home() / "Desktop" / "VIdeoEvidance"
 CORNER_OPTIONS = ["None", "top_left", "top_right", "bottom_right", "bottom_left"]
 
 
@@ -19,31 +47,84 @@ class LauncherApp(tk.Tk):
         self.geometry("760x620")
         self.minsize(500, 400) # Reduced minimum size so it fits on smaller laptop screens
 
-        self.camera_mode = tk.StringVar(value="Both cameras")
+        initial = default_launch_values()
+        initial_camera_mode = {
+            "both": "Both cameras",
+            "camera_1": "Camera 1 only",
+            "camera_2": "Camera 2 only",
+        }.get(str(initial["camera_mode"]), "Both cameras")
+        self.camera_mode = tk.StringVar(value=initial_camera_mode)
         self.setup = tk.BooleanVar(value=False)
         self.use_mediapipe = tk.BooleanVar(value=True)
-        self.use_reid = tk.BooleanVar(value=False)
-        self.use_mqtt = tk.BooleanVar(value=False)
+        self.use_reid = tk.BooleanVar(value=True)
+        self.enable_mivolo = tk.BooleanVar(value=True)
+        self.use_mqtt = tk.BooleanVar(value=True)
+        self.record_screen = tk.BooleanVar(value=False)
+        self.disable_map_motion_filter = tk.BooleanVar(value=False)
+        # TEMP_IDENTITY_DEBUG: remove with the temporary troubleshooting logger.
+        self.debug_identity_events = tk.BooleanVar(value=False)
 
-        self.yolo_device = tk.StringVar(value="GPU (0)")
-        self.reid_device = tk.StringVar(value="GPU (1)")
+        device_labels = {"0": "GPU (0)", "1": "GPU (1)"}
+        self.yolo_device_1 = tk.StringVar(
+            value=device_labels.get(str(initial["yolo_device_1"]), "CPU")
+        )
+        self.yolo_device_2 = tk.StringVar(
+            value=device_labels.get(str(initial["yolo_device_2"]), "CPU")
+        )
+        self.reid_device = tk.StringVar(
+            value={"cuda:0": "GPU (0)", "cuda:1": "GPU (1)"}.get(
+                str(initial["reid_device"]), "CPU"
+            )
+        )
+        mediapipe_labels = {
+            "auto": "Auto",
+            "gpu": "GPU (display/default)",
+            "gpu:0": "GPU (0)",
+            "gpu:1": "GPU (1)",
+            "cpu": "CPU",
+        }
+        self.mediapipe_delegate = tk.StringVar(
+            value=mediapipe_labels.get(
+                str(initial["mediapipe_delegate"]).strip().lower(), "Auto"
+            )
+        )
 
-        self.source_1 = tk.StringVar(value=DEFAULT_RTSP_URL)
-        self.source_2 = tk.StringVar(value="rtsp://admin:P@ssword1@192.168.50.76:554/Streaming/Channels/101")
-        self.camera_id_1 = tk.StringVar(value="cam_1")
-        self.camera_id_2 = tk.StringVar(value="cam_2")
-        self.matrix_1 = tk.StringVar(value="homography_matrix.json")
-        self.matrix_2 = tk.StringVar(value="homography_matrix_2.json")
+        self.source_1 = tk.StringVar(value=str(initial["source_1"]))
+        self.source_2 = tk.StringVar(value=str(initial["source_2"]))
+        self.camera_id_1 = tk.StringVar(value=str(initial["camera_id_1"]))
+        self.camera_id_2 = tk.StringVar(value=str(initial["camera_id_2"]))
+        self.matrix_1 = tk.StringVar(value=str(initial["matrix_1"]))
+        self.matrix_2 = tk.StringVar(value=str(initial["matrix_2"]))
         self.corner_1 = tk.StringVar(value="None")
         self.corner_2 = tk.StringVar(value="None")
 
-        self.model = tk.StringVar(value="yolo11n.pt")
-        self.yolo_nms_iou = tk.StringVar(value=str(DEFAULT_YOLO_NMS_IOU))
-        self.tracker_config = tk.StringVar(value=DEFAULT_TRACKER_CONFIG_PATH)
-        self.run_id = tk.StringVar(value="field_test_001")
-        self.fusion_distance = tk.StringVar(value="50")
-        self.mqtt_broker = tk.StringVar(value="192.168.50.45")
-        self.mqtt_port = tk.StringVar(value="1883")
+        self.model = tk.StringVar(value=str(initial["model"]))
+        self.yolo_confidence = tk.StringVar(value=str(initial["yolo_confidence"]))
+        self.yolo_nms_iou = tk.StringVar(value=str(initial["yolo_nms_iou"]))
+        self.tracker_config = tk.StringVar(value=str(initial["tracker_config"]))
+        self.run_id = tk.StringVar(value=str(initial["run_id"]))
+        self.tent_size_cm = tk.StringVar(value=str(initial["map_size_cm"]))
+        self.map_grid_columns = tk.StringVar(value=str(initial["map_grid_columns"]))
+        self.map_grid_rows = tk.StringVar(value=str(initial["map_grid_rows"]))
+
+        # --- Fusion settings: every knob that affects how cam_1 and cam_2
+        # detections get merged into one cross-camera identity. ---
+        self.fusion_distance = tk.StringVar(value=str(initial["fusion_distance_cm"]))
+        self.fusion_max_skew_seconds = tk.StringVar(
+            value=str(initial["cross_camera_max_skew_seconds"])
+        )
+        # Note: whether ReID is a hard veto on fusion is controlled by the
+        # existing "Appearance ReID" checkbox (self.use_reid) below -- it's
+        # the same --use-appearance-reid flag main_tracker.py passes straight
+        # through as fuse_camera_points(require_reid=...). No separate toggle.
+        self.reid_distance_threshold = tk.StringVar(
+            value=str(initial["reid_distance_threshold"])
+        )
+
+        self.mqtt_broker = tk.StringVar(value=str(initial["mqtt_broker"]))
+        self.mqtt_port = tk.StringVar(value=str(initial["mqtt_port"]))
+        self.reid_api_url = tk.StringVar(value=str(initial["reid_api_url"]))
+        self.tracker_process: subprocess.Popen | None = None
 
         self.command_preview = tk.StringVar(value="")
         self._build_ui()
@@ -72,6 +153,8 @@ class LauncherApp(tk.Tk):
         def _on_mousewheel(event):
             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
         self.bind_all("<MouseWheel>", _on_mousewheel)
+        self.bind_all("<Button-4>", lambda _event: canvas.yview_scroll(-1, "units"))
+        self.bind_all("<Button-5>", lambda _event: canvas.yview_scroll(1, "units"))
         # --- END SCROLLING SETUP ---
 
         title = ttk.Label(container, text="Camera Run Setup", font=("Segoe UI", 16, "bold"))
@@ -101,17 +184,56 @@ class LauncherApp(tk.Tk):
             checkbox = ttk.Checkbutton(options_frame, text=label, variable=variable, command=self._refresh_preview)
             checkbox.pack(side="left", padx=(0, 18))
 
-        # 🚨 YOLO/LOCATION DEVICE DROPDOWN 🚨
-        ttk.Label(mode_frame, text="YOLO Device").grid(row=2, column=0, sticky="w", pady=(12, 0))
-        yolo_box = ttk.Combobox(mode_frame, textvariable=self.yolo_device, values=["GPU (0)", "GPU (1)", "CPU"], state="readonly", width=22)
-        yolo_box.grid(row=2, column=1, sticky="w", padx=(12, 0), pady=(12, 0))
-        yolo_box.bind("<<ComboboxSelected>>", self._on_change)
+        ttk.Label(mode_frame, text="Camera 1 YOLO Device").grid(row=2, column=0, sticky="w", pady=(12, 0))
+        yolo_box_1 = ttk.Combobox(mode_frame, textvariable=self.yolo_device_1, values=["GPU (0)", "GPU (1)", "CPU"], state="readonly", width=22)
+        yolo_box_1.grid(row=2, column=1, sticky="w", padx=(12, 0), pady=(12, 0))
+        yolo_box_1.bind("<<ComboboxSelected>>", self._on_change)
+
+        ttk.Label(mode_frame, text="Camera 2 YOLO Device").grid(row=3, column=0, sticky="w", pady=(4, 0))
+        yolo_box_2 = ttk.Combobox(mode_frame, textvariable=self.yolo_device_2, values=["GPU (0)", "GPU (1)", "CPU"], state="readonly", width=22)
+        yolo_box_2.grid(row=3, column=1, sticky="w", padx=(12, 0), pady=(4, 0))
+        yolo_box_2.bind("<<ComboboxSelected>>", self._on_change)
 
         # 🚨 REID DEVICE DROPDOWN 🚨
-        ttk.Label(mode_frame, text="ReID Device").grid(row=3, column=0, sticky="w", pady=(4, 0))
+        ttk.Label(mode_frame, text="ReID Device").grid(row=4, column=0, sticky="w", pady=(4, 0))
         reid_box = ttk.Combobox(mode_frame, textvariable=self.reid_device, values=["GPU (0)", "GPU (1)", "CPU"], state="readonly", width=22)
-        reid_box.grid(row=3, column=1, sticky="w", padx=(12, 0), pady=(4, 0))
+        reid_box.grid(row=4, column=1, sticky="w", padx=(12, 0), pady=(4, 0))
         reid_box.bind("<<ComboboxSelected>>", self._on_change)
+
+        ttk.Label(mode_frame, text="MediaPipe Device (both cameras)").grid(row=5, column=0, sticky="w", pady=(4, 0))
+        mediapipe_box = ttk.Combobox(
+            mode_frame,
+            textvariable=self.mediapipe_delegate,
+            values=["Auto", "GPU (0)", "GPU (1)", "GPU (display/default)", "CPU"],
+            state="readonly",
+            width=22,
+        )
+        mediapipe_box.grid(row=5, column=1, sticky="w", padx=(12, 0), pady=(4, 0))
+        mediapipe_box.bind("<<ComboboxSelected>>", self._on_change)
+        ttk.Checkbutton(
+            mode_frame,
+            text="MiVOLO age/gender analysis",
+            variable=self.enable_mivolo,
+            command=self._refresh_preview,
+        ).grid(row=6, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        # TEMP_IDENTITY_DEBUG
+        ttk.Checkbutton(
+            mode_frame,
+            text="Temporary identity event log",
+            variable=self.debug_identity_events,
+            command=self._refresh_preview,
+        ).grid(row=7, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        ttk.Checkbutton(
+            mode_frame,
+            text="Record desktop screen (no audio)",
+            variable=self.record_screen,
+        ).grid(row=8, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        ttk.Checkbutton(
+            mode_frame,
+            text="Disable tactical-map speed hold",
+            variable=self.disable_map_motion_filter,
+            command=self._refresh_preview,
+        ).grid(row=9, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
         camera_frame = ttk.LabelFrame(container, text="Cameras", padding=12)
         camera_frame.pack(fill="x", pady=8)
@@ -125,12 +247,62 @@ class LauncherApp(tk.Tk):
         advanced.pack(fill="x", pady=8)
         advanced.columnconfigure(1, weight=1)
         self._entry(advanced, "YOLO model", self.model, 0)
-        self._entry(advanced, "YOLO NMS IoU", self.yolo_nms_iou, 1, width=12)
-        self._entry(advanced, "ByteTrack config", self.tracker_config, 2)
-        self._entry(advanced, "Run ID", self.run_id, 3)
-        self._entry(advanced, "Fusion distance cm", self.fusion_distance, 4, width=12)
+        self._entry(advanced, "YOLO confidence", self.yolo_confidence, 1, width=12)
+        self._entry(advanced, "YOLO NMS IoU", self.yolo_nms_iou, 2, width=12)
+        self._entry(advanced, "Tracker config", self.tracker_config, 3)
+        self._entry(advanced, "Run ID", self.run_id, 4)
         self._entry(advanced, "MQTT broker", self.mqtt_broker, 5)
         self._entry(advanced, "MQTT port", self.mqtt_port, 6, width=12)
+        self._entry(advanced, "ReID backend URL", self.reid_api_url, 7)
+        self._entry(advanced, "Tent side length (cm)", self.tent_size_cm, 8, width=12)
+        self._entry(advanced, "Tactical-map grid columns", self.map_grid_columns, 9, width=12)
+        self._entry(advanced, "Tactical-map grid rows", self.map_grid_rows, 10, width=12)
+        ttk.Label(
+            advanced,
+            text="Grid columns and rows only change the visual layout; they do not change the tent size or calibration.",
+            wraplength=560,
+            justify="left",
+            foreground="#555555",
+        ).grid(row=11, column=0, columnspan=3, sticky="w", pady=(2, 0))
+
+        fusion_frame = ttk.LabelFrame(container, text="Cross-Camera Fusion", padding=12)
+        fusion_frame.pack(fill="x", pady=8)
+        fusion_frame.columnconfigure(1, weight=1)
+        ttk.Label(
+            fusion_frame,
+            text="Controls how a cam_1 detection and a cam_2 detection get merged into one tracked person.",
+            wraplength=560,
+            justify="left",
+        ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
+        self._entry(fusion_frame, "Max distance (cm)", self.fusion_distance, 1, width=12)
+        ttk.Label(
+            fusion_frame,
+            text="How far apart (on the tactical map) two camera detections can be and still be considered the same person.",
+            wraplength=560,
+            justify="left",
+            foreground="#555555",
+        ).grid(row=2, column=0, columnspan=3, sticky="w", pady=(0, 8))
+        self._entry(fusion_frame, "Max time skew (s)", self.fusion_max_skew_seconds, 3, width=12)
+        ttk.Label(
+            fusion_frame,
+            text="How far apart in capture time two camera detections can be and still be paired together.",
+            wraplength=560,
+            justify="left",
+            foreground="#555555",
+        ).grid(row=4, column=0, columnspan=3, sticky="w", pady=(0, 8))
+        self._entry(fusion_frame, "ReID match strictness (0-1)", self.reid_distance_threshold, 5, width=12)
+        ttk.Label(
+            fusion_frame,
+            text=(
+                "How much appearance (ReID) weighs into fusion. Lower = stricter appearance match required "
+                "before two detections merge (fewer false merges, more missed merges). Higher = looser matching "
+                "(more merges, more risk of merging different people). Only applies when \"Appearance ReID\" is "
+                "checked above -- otherwise fusion uses distance/time only."
+            ),
+            wraplength=560,
+            justify="left",
+            foreground="#555555",
+        ).grid(row=6, column=0, columnspan=3, sticky="w")
 
         preview_frame = ttk.LabelFrame(container, text="Command Preview", padding=12)
         preview_frame.pack(fill="both", expand=True, pady=8)
@@ -142,11 +314,18 @@ class LauncherApp(tk.Tk):
         button_frame = ttk.Frame(container)
         button_frame.pack(fill="x", pady=(8, 0))
         ttk.Button(button_frame, text="Refresh", command=self._refresh_preview).pack(side="left")
+        ttk.Button(
+            button_frame,
+            text="Reset database and ReID evidence…",
+            command=self._reset_run_data,
+        ).pack(side="left", padx=(12, 0))
         ttk.Button(button_frame, text="Start", command=self._start).pack(side="right")
 
         for variable in [
-            self.yolo_device,
+            self.yolo_device_1,
+            self.yolo_device_2,
             self.reid_device,
+            self.mediapipe_delegate,
             self.source_1,
             self.source_2,
             self.camera_id_1,
@@ -156,12 +335,19 @@ class LauncherApp(tk.Tk):
             self.corner_1,
             self.corner_2,
             self.model,
+            self.yolo_confidence,
             self.yolo_nms_iou,
             self.tracker_config,
             self.run_id,
+            self.tent_size_cm,
+            self.map_grid_columns,
+            self.map_grid_rows,
             self.fusion_distance,
+            self.fusion_max_skew_seconds,
+            self.reid_distance_threshold,
             self.mqtt_broker,
             self.mqtt_port,
+            self.reid_api_url,
         ]:
             variable.trace_add("write", lambda *_args: self._refresh_preview())
 
@@ -170,7 +356,7 @@ class LauncherApp(tk.Tk):
         self._entry(parent, "Source", source, row_offset + 1)
         self._entry(parent, "Camera ID", camera_id, row_offset + 2, width=18)
         self._entry(parent, "Matrix", matrix, row_offset + 3, width=28)
-        ttk.Label(parent, text="Missing corner").grid(row=row_offset + 2, column=2, sticky="e", padx=(16, 8))
+        ttk.Label(parent, text="Location").grid(row=row_offset + 2, column=2, sticky="e", padx=(16, 8))
         corner_box = ttk.Combobox(parent, textvariable=corner, values=CORNER_OPTIONS, state="readonly", width=18)
         corner_box.grid(row=row_offset + 3, column=2, sticky="e")
         corner_box.bind("<<ComboboxSelected>>", self._on_change)
@@ -196,79 +382,67 @@ class LauncherApp(tk.Tk):
         if value and value != "None":
             command.extend([option, value])
 
-    def _build_command(self):
+    def _build_command(self, identity_debug_log=None):
         selected = self._selected_cameras()
-        command = [sys.executable, str(SCRIPT_PATH)]
-
-        # 1. SET YOLO DEVICE
-        if self.yolo_device.get() == "GPU (0)":
-            command.extend(["--device", "0"])
-        elif self.yolo_device.get() == "GPU (1)":
-            command.extend(["--device", "1"])
-        else:
-            command.extend(["--device", "cpu"])
-
-        if self.setup.get():
-            command.append("--setup")
-
-        command.extend(["--model", self.model.get().strip() or "yolo11n.pt"])
-        command.extend(["--iou", self.yolo_nms_iou.get().strip() or str(DEFAULT_YOLO_NMS_IOU)])
-        command.extend(["--tracker-config", self.tracker_config.get().strip() or DEFAULT_TRACKER_CONFIG_PATH])
-
-        if self.use_mediapipe.get():
-            command.append("--use-mediapipe-feet")
-
-        if self.use_reid.get():
-            command.extend([
-                "--use-appearance-reid",
-                "--reid-checkpoint",
-                "transreid_msmt17.pth",
-                "--fastreid-root",
-                "fast-reid",
-            ])
-            # 2. SET REID DEVICE
-            if self.reid_device.get() == "GPU (0)":
-                command.extend(["--reid-device", "cuda:0"])
-            elif self.reid_device.get() == "GPU (1)":
-                command.extend(["--reid-device", "cuda:1"])
-            else:
-                command.extend(["--reid-device", "cpu"])
-
-        if selected == ["1"]:
-            command.extend(["--source", self.source_1.get().strip()])
-            command.extend(["--matrix", self.matrix_1.get().strip()])
-            command.extend(["--camera-id", self.camera_id_1.get().strip()])
-            self._add_corner(command, "--missing-corner", self.corner_1.get())
-        elif selected == ["2"]:
-            command.extend(["--source", self.source_2.get().strip()])
-            command.extend(["--matrix", self.matrix_2.get().strip()])
-            command.extend(["--camera-id", self.camera_id_2.get().strip()])
-            self._add_corner(command, "--missing-corner", self.corner_2.get())
-        else:
-            command.extend(["--source", self.source_1.get().strip()])
-            command.extend(["--source-2", self.source_2.get().strip()])
-            command.extend(["--matrix", self.matrix_1.get().strip()])
-            command.extend(["--matrix-2", self.matrix_2.get().strip()])
-            command.extend(["--camera-id", self.camera_id_1.get().strip()])
-            command.extend(["--camera-id-2", self.camera_id_2.get().strip()])
-            self._add_corner(command, "--missing-corner", self.corner_1.get())
-            self._add_corner(command, "--missing-corner-2", self.corner_2.get())
-            if self.fusion_distance.get().strip():
-                command.extend(["--fusion-distance-cm", self.fusion_distance.get().strip()])
-
-        if self.run_id.get().strip():
-            command.extend(["--run-id", self.run_id.get().strip()])
-
-        if self.use_mqtt.get():
-            command.extend(["--mqtt-broker", self.mqtt_broker.get().strip()])
-            command.extend(["--mqtt-port", self.mqtt_port.get().strip()])
-            command.extend(["--mqtt-publish-interval", "0.5"])
-
-        return command
+        values = default_launch_values()
+        values.update(
+            {
+                "camera_mode": (
+                    "camera_1" if selected == ["1"] else "camera_2" if selected == ["2"] else "both"
+                ),
+                "setup": self.setup.get(),
+                "use_mediapipe": self.use_mediapipe.get(),
+                "use_reid": self.use_reid.get(),
+                "enable_mivolo": self.enable_mivolo.get(),
+                "use_mqtt": self.use_mqtt.get(),
+                "disable_map_motion_filter": self.disable_map_motion_filter.get(),
+                "debug_identity_events": self.debug_identity_events.get(),
+                "identity_debug_log": identity_debug_log,
+                "yolo_device_1": {"GPU (0)": "0", "GPU (1)": "1"}.get(
+                    self.yolo_device_1.get(), "cpu"
+                ),
+                "yolo_device_2": {"GPU (0)": "0", "GPU (1)": "1"}.get(
+                    self.yolo_device_2.get(), "cpu"
+                ),
+                "reid_device": {"GPU (0)": "cuda:0", "GPU (1)": "cuda:1"}.get(
+                    self.reid_device.get(), "cpu"
+                ),
+                "mediapipe_delegate": {
+                    "GPU (0)": "gpu:0",
+                    "GPU (1)": "gpu:1",
+                    "GPU (display/default)": "gpu",
+                    "CPU": "cpu",
+                }.get(self.mediapipe_delegate.get(), "auto"),
+                "source_1": self.source_1.get().strip(),
+                "source_2": self.source_2.get().strip(),
+                "camera_id_1": self.camera_id_1.get().strip(),
+                "camera_id_2": self.camera_id_2.get().strip(),
+                "matrix_1": self.matrix_1.get().strip(),
+                "matrix_2": self.matrix_2.get().strip(),
+                "missing_corner_1": self.corner_1.get(),
+                "missing_corner_2": self.corner_2.get(),
+                "model": self.model.get().strip() or "yolo26m.pt",
+                "yolo_confidence": self.yolo_confidence.get().strip() or "0.75",
+                "yolo_nms_iou": self.yolo_nms_iou.get().strip() or str(DEFAULT_YOLO_NMS_IOU),
+                "tracker_config": self.tracker_config.get().strip() or DEFAULT_TRACKER_CONFIG_PATH,
+                "run_id": self.run_id.get().strip() or "field_test_001",
+                "map_size_cm": self.tent_size_cm.get().strip(),
+                "map_grid_columns": self.map_grid_columns.get().strip(),
+                "map_grid_rows": self.map_grid_rows.get().strip(),
+                "fusion_distance_cm": self.fusion_distance.get().strip(),
+                "cross_camera_max_skew_seconds": self.fusion_max_skew_seconds.get().strip(),
+                "reid_distance_threshold": self.reid_distance_threshold.get().strip(),
+                "mqtt_broker": self.mqtt_broker.get().strip(),
+                "mqtt_port": self.mqtt_port.get().strip(),
+                "reid_api_url": self.reid_api_url.get().strip(),
+            }
+        )
+        return [sys.executable, str(SCRIPT_PATH), *build_tracker_arguments(values)]
 
     def _refresh_preview(self):
         command = self._build_command()
-        pretty = subprocess.list2cmdline(command)
+        safe_command = redact_tracker_arguments(command)
+        pretty = subprocess.list2cmdline(safe_command) if os.name == "nt" else shlex.join(safe_command)
         self.preview_widget.configure(state="normal")
         self.preview_widget.delete("1.0", "end")
         self.preview_widget.insert("1.0", pretty)
@@ -301,22 +475,323 @@ class LauncherApp(tk.Tk):
         if not 0.0 < nms_iou <= 1.0:
             messagebox.showerror("Invalid value", "YOLO NMS IoU must be greater than 0 and at most 1.")
             return False
+
+        try:
+            tent_size_cm = int(self.tent_size_cm.get())
+        except ValueError:
+            messagebox.showerror("Invalid value", "Tent side length (cm) must be a whole number.")
+            return False
+        if tent_size_cm <= 0:
+            messagebox.showerror("Invalid value", "Tent side length (cm) must be greater than 0.")
+            return False
+
+        for label, variable in [
+            ("Tactical-map grid columns", self.map_grid_columns),
+            ("Tactical-map grid rows", self.map_grid_rows),
+        ]:
+            try:
+                grid_count = int(variable.get())
+            except ValueError:
+                messagebox.showerror("Invalid value", f"{label} must be a whole number.")
+                return False
+            if not 1 <= grid_count <= 50:
+                messagebox.showerror("Invalid value", f"{label} must be between 1 and 50.")
+                return False
+
+        if "1" in selected and "2" in selected:
+            try:
+                fusion_distance_cm = float(self.fusion_distance.get())
+            except ValueError:
+                messagebox.showerror("Invalid value", "Fusion max distance (cm) must be a number.")
+                return False
+            if fusion_distance_cm <= 0:
+                messagebox.showerror("Invalid value", "Fusion max distance (cm) must be greater than 0.")
+                return False
+
+            try:
+                fusion_skew_seconds = float(self.fusion_max_skew_seconds.get())
+            except ValueError:
+                messagebox.showerror("Invalid value", "Fusion max time skew (s) must be a number.")
+                return False
+            if fusion_skew_seconds <= 0:
+                messagebox.showerror("Invalid value", "Fusion max time skew (s) must be greater than 0.")
+                return False
+
+        if self.use_reid.get():
+            try:
+                reid_distance_threshold = float(self.reid_distance_threshold.get())
+            except ValueError:
+                messagebox.showerror("Invalid value", "ReID match strictness must be a number.")
+                return False
+            if not 0.0 < reid_distance_threshold <= 1.0:
+                messagebox.showerror(
+                    "Invalid value",
+                    "ReID match strictness should be greater than 0 and at most 1 (it's a cosine distance).",
+                )
+                return False
+
         return True
+
+    @staticmethod
+    def _record_screen(process, output_path, fps=10.0):
+        writer = None
+        try:
+            import cv2
+            import numpy as np
+            from PIL import ImageGrab
+
+            first_image = ImageGrab.grab(all_screens=True)
+            width = first_image.width - (first_image.width % 2)
+            height = first_image.height - (first_image.height % 2)
+            writer = cv2.VideoWriter(
+                str(output_path),
+                cv2.VideoWriter_fourcc(*"mp4v"),
+                float(fps),
+                (width, height),
+            )
+            if not writer.isOpened():
+                raise RuntimeError("Unable to open the MP4 screen-recording writer.")
+
+            frame_interval = 1.0 / float(fps)
+            next_capture = time.monotonic()
+            while process.poll() is None:
+                now = time.monotonic()
+                if now < next_capture:
+                    time.sleep(min(next_capture - now, 0.05))
+                    continue
+
+                image = ImageGrab.grab(all_screens=True)
+                rgb_frame = np.asarray(image)
+                if rgb_frame.ndim == 3 and rgb_frame.shape[2] == 4:
+                    bgr_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_RGBA2BGR)
+                else:
+                    bgr_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR)
+                if bgr_frame.shape[1] != width or bgr_frame.shape[0] != height:
+                    bgr_frame = cv2.resize(bgr_frame, (width, height))
+                writer.write(bgr_frame)
+
+                next_capture += frame_interval
+                if next_capture < now:
+                    next_capture = now + frame_interval
+        except Exception as exc:
+            error_path = output_path.with_suffix(".error.txt")
+            try:
+                error_path.write_text(str(exc), encoding="utf-8")
+            except OSError:
+                pass
+        finally:
+            if writer is not None:
+                writer.release()
+
+    @staticmethod
+    def _matching_process_ids(predicate):
+        try:
+            result = subprocess.run(
+                ["ps", "-eo", "pid=,args="],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        except (OSError, subprocess.CalledProcessError) as exc:
+            raise RuntimeError(f"Unable to inspect running processes: {exc}") from exc
+
+        process_ids = []
+        for line in result.stdout.splitlines():
+            pid_text, _, command = line.strip().partition(" ")
+            if pid_text.isdigit() and predicate(command):
+                process_ids.append(int(pid_text))
+        return process_ids
+
+    @staticmethod
+    def _stop_process(pid, signal_number=signal.SIGTERM):
+        try:
+            process_group_id = os.getpgid(pid)
+            if process_group_id == pid:
+                os.killpg(process_group_id, signal_number)
+            else:
+                os.kill(pid, signal_number)
+        except ProcessLookupError:
+            return
+
+    @staticmethod
+    def _process_has_stopped(pid):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+
+        if os.name != "nt":
+            try:
+                process_state = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit(")", 1)[1].split()[0]
+            except (FileNotFoundError, IndexError):
+                return True
+            return process_state == "Z"
+        return False
+
+    @classmethod
+    def _wait_for_processes_to_stop(cls, process_ids, timeout_seconds=8.0):
+        deadline = time.monotonic() + timeout_seconds
+        remaining = set(process_ids)
+        while remaining and time.monotonic() < deadline:
+            for pid in tuple(remaining):
+                if cls._process_has_stopped(pid):
+                    remaining.remove(pid)
+            if remaining:
+                time.sleep(0.1)
+        return remaining
+
+    def _reset_run_data(self):
+        confirmation = simpledialog.askstring(
+            "Reset database and ReID evidence",
+            "This stops the tracker, backend, and Mosquitto; then permanently deletes:\n"
+            f"• {DATABASE_PATH.name}, {DATABASE_PATH.name}-wal, and {DATABASE_PATH.name}-shm\n"
+            f"• {REID_EVIDENCE_DIRECTORY.name}/\n\n"
+            "Type RESET to continue.",
+            parent=self,
+        )
+        if confirmation != "RESET":
+            return
+
+        try:
+            tracker_pids = self._matching_process_ids(
+                lambda command: str(SCRIPT_PATH) in command
+            )
+            backend_pids = self._matching_process_ids(
+                lambda command: str(BACKEND_DIRECTORY) in command
+                and "uvicorn" in command
+                and "main:app" in command
+            )
+            project_process_ids = sorted(set(tracker_pids + backend_pids))
+            for pid in project_process_ids:
+                self._stop_process(pid)
+            remaining_process_ids = self._wait_for_processes_to_stop(project_process_ids)
+            if remaining_process_ids:
+                for pid in remaining_process_ids:
+                    self._stop_process(pid, signal.SIGKILL)
+                remaining_process_ids = self._wait_for_processes_to_stop(
+                    remaining_process_ids,
+                    timeout_seconds=2.0,
+                )
+            if remaining_process_ids:
+                joined_pids = ", ".join(str(pid) for pid in sorted(remaining_process_ids))
+                raise RuntimeError(f"These project processes could not be stopped: {joined_pids}")
+            self.tracker_process = None
+
+            service_status = subprocess.run(
+                ["systemctl", "is-active", "--quiet", "mosquitto"],
+                check=False,
+            )
+            if service_status.returncode == 0:
+                stop_service = subprocess.run(
+                    ["pkexec", "systemctl", "stop", "mosquitto"],
+                    check=False,
+                )
+                if stop_service.returncode != 0:
+                    raise RuntimeError("Mosquitto was not stopped; no data was deleted.")
+
+            removed_paths = []
+            for database_file in (
+                DATABASE_PATH,
+                DATABASE_PATH.with_name(f"{DATABASE_PATH.name}-wal"),
+                DATABASE_PATH.with_name(f"{DATABASE_PATH.name}-shm"),
+            ):
+                if database_file.exists():
+                    database_file.unlink()
+                    removed_paths.append(str(database_file))
+            if REID_EVIDENCE_DIRECTORY.exists():
+                shutil.rmtree(REID_EVIDENCE_DIRECTORY)
+                removed_paths.append(str(REID_EVIDENCE_DIRECTORY))
+
+            summary = "\n".join(f"• {path}" for path in removed_paths) or "Nothing existed to delete."
+            messagebox.showinfo(
+                "Reset complete",
+                "The tracker, backend, and Mosquitto are stopped.\n\nRemoved:\n" + summary,
+            )
+        except (OSError, RuntimeError) as exc:
+            messagebox.showerror("Reset not completed", str(exc))
 
     def _start(self):
         if not self._validate():
             return
 
-        command = self._build_command()
         try:
-            subprocess.Popen(command, cwd=str(ROOT), creationflags=subprocess.CREATE_NEW_CONSOLE)
-        except AttributeError:
-            subprocess.Popen(command, cwd=str(ROOT))
+            preflight_lock = CvRuntimeLock("technical tester launcher").acquire()
+        except CvRuntimeBusyError as exc:
+            messagebox.showerror("Computer vision already running", str(exc))
+            return
+        else:
+            preflight_lock.release()
+
+        safe_run_id = "".join(
+            character if character.isalnum() or character in "-_" else "_"
+            for character in (self.run_id.get().strip() or "field_test")
+        )
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        identity_debug_log = None
+        if self.debug_identity_events.get():
+            try:
+                LOG_EVIDENCE_DIRECTORY.mkdir(parents=True, exist_ok=True)
+                identity_debug_log = LOG_EVIDENCE_DIRECTORY / f"{safe_run_id}_{timestamp}.jsonl"
+            except OSError as exc:
+                messagebox.showerror("Log folder unavailable", str(exc))
+                return
+
+        command = self._build_command(identity_debug_log=identity_debug_log)
+        runtime_log = None
+        try:
+            if os.name == "nt":
+                process = subprocess.Popen(
+                    command,
+                    cwd=str(ROOT),
+                    creationflags=subprocess.CREATE_NEW_CONSOLE,
+                )
+            else:
+                LOG_EVIDENCE_DIRECTORY.mkdir(parents=True, exist_ok=True)
+                runtime_log = LOG_EVIDENCE_DIRECTORY / f"{safe_run_id}_{timestamp}.console.log"
+                runtime_stream = runtime_log.open("w", encoding="utf-8")
+                try:
+                    process = subprocess.Popen(
+                        command,
+                        cwd=str(ROOT),
+                        stdout=runtime_stream,
+                        stderr=subprocess.STDOUT,
+                        start_new_session=True,
+                    )
+                finally:
+                    runtime_stream.close()
         except OSError as exc:
             messagebox.showerror("Launch failed", str(exc))
             return
 
-        messagebox.showinfo("Started", "Camera detection has started in a new console window.")
+        self.tracker_process = process
+
+        recording_path = None
+        if self.record_screen.get():
+            try:
+                SCREEN_RECORDING_DIRECTORY.mkdir(parents=True, exist_ok=True)
+                recording_path = SCREEN_RECORDING_DIRECTORY / f"{safe_run_id}_{timestamp}.mp4"
+                threading.Thread(
+                    target=self._record_screen,
+                    args=(process, recording_path),
+                    daemon=False,
+                    name="desktop-screen-recorder",
+                ).start()
+            except OSError as exc:
+                messagebox.showwarning("Recording not started", str(exc))
+
+        message = (
+            "Camera detection has started in a new console window."
+            if os.name == "nt"
+            else "Camera detection has started in the background."
+        )
+        if runtime_log is not None:
+            message += f"\n\nRuntime output:\n{runtime_log}"
+        if identity_debug_log is not None:
+            message += f"\n\nLog evidence:\n{identity_debug_log}"
+        if recording_path is not None:
+            message += f"\n\nScreen recording:\n{recording_path}"
+        messagebox.showinfo("Started", message)
 
 
 if __name__ == "__main__":

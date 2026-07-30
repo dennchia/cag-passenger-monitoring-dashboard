@@ -1,232 +1,124 @@
 # CAG Passenger Monitoring Dashboard V1.5
 
-FastAPI + React migration for the Passenger Monitoring Dashboard.
+An Ubuntu-based FastAPI, React, MQTT, and multi-camera computer-vision system for tactical passenger monitoring and assistance evidence.
 
-V1.5 focuses on:
+## Operator quick start
 
-- stable multi-camera MJPEG camera streaming
-- SQLite-backed metrics and alerts
-- camera-keyed zone capacity status bars
-- historical passenger-count trend sparklines
-- tactical floor map dots from external CV telemetry
-- MQTT live telemetry ingestion
-- saved passenger assistance observations from an external age/gender pipeline
-- a compact dark React dashboard shell
+After completing [README_UBUNTU.md](README_UBUNTU.md) and configuring `backend/.env`, run from the repository root:
 
-Streamlit-era code is archived in `archive_v0/`.
-
-## Requirements
-
-- Python 3.11+ recommended
-- Node.js LTS v20+
-- A real Hikvision stream URL, usually RTSP:
-
-```text
-rtsp://username:password@192.168.50.192:554/Streaming/Channels/101
+```bash
+bash start_ubuntu.sh
 ```
 
-The Hikvision `http://camera-ip/` page is usually only the web management portal, not a video stream.
-For multiple cameras, set `CAMERA_URLS` in `backend/.env`:
+Open `http://localhost:8000`. The dashboard reports model-loading progress and enables **Start Session** when the persistent CV worker is ready. Operators see only session status and Start/Stop controls; technical model and camera settings remain outside the user interface.
+
+The command provides:
+
+- one Mosquitto broker, reusing an existing port-1883 listener when present;
+- FastAPI and the compiled React dashboard on port 8000;
+- an idle CV worker that preloads the enabled YOLO, MediaPipe, TransReID, role, and MiVOLO models;
+- safe single-session Start/Stop control;
+- cleanup limited to processes started by this deployment command.
+
+## Tester workflow
+
+The detailed engineering launcher remains available independently:
+
+```bash
+bash launch_tracker_ubuntu.sh
+```
+
+It exposes camera, GPU, calibration, model, threshold, fusion, ReID, MQTT, map, logging, and recording settings. It and the dashboard worker share configuration construction and a runtime ownership lock, so they cannot consume the cameras and GPUs simultaneously.
+
+Use `bash start_dev_ubuntu.sh` for Vite/FastAPI development.
+
+## Configuration
+
+Create the private configuration once:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+At minimum configure real camera sources:
 
 ```text
-CAMERA_URLS=cam_1=rtsp://username:password@192.168.50.192:554/Streaming/Channels/101,cam_2=rtsp://username:password@192.168.50.76:554/Streaming/Channels/101
+CAMERA_URLS=cam_1=rtsp://username:password@192.168.50.192:554/Streaming/Channels/101,cam_2=rtsp://username:password@192.168.50.81:554/Streaming/Channels/101
 PRIMARY_CAMERA_ID=cam_1
-ZONE_CAPACITIES_JSON={"cam_1":150,"cam_2":150}
-```
-
-For teammate CV telemetry over MQTT, run a broker such as Mosquitto on the machine acting as the server. In centralised laptop-server testing, this is your laptop:
-
-```text
 MQTT_ENABLED=true
 MQTT_HOST=localhost
 MQTT_PORT=1883
-MQTT_TOPIC_METRICS=cag/metrics
-MQTT_TOPIC_TACTICAL=cag/tactical
-MQTT_TOPIC_ALERTS=cag/alerts
-MQTT_METRIC_LOG_INTERVAL_SECONDS=1
 ```
 
-## Backend
+Do not commit `backend/.env`. Camera credentials remain on the backend and are not returned to React or written unredacted to service logs.
 
-```powershell
-cd "C:\Users\aveng\Documents\Codex\CAG (MP)\backend"
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
+The production CV preset is configured with `CV_*` variables documented in `backend/.env.example`. Current defaults preserve the tester launch behavior: two cameras when configured, YOLO on GPU 0, TransReID/MiVOLO on GPU 1, MediaPipe auto delegate, appearance ReID and demographics enabled, 480 cm map size, and 5-by-5 visual grid.
 
-Useful checks:
+## Session states
 
 ```text
-http://localhost:8000/health
-http://localhost:8000/api/status
-http://localhost:8000/api/stream
-http://localhost:8000/api/cameras
-http://localhost:8000/api/cameras/cam_1/stream
+offline → loading → ready → starting → running
+                       ↑                  ↓
+                       └──── stopping ────┘
+
+Unrecoverable worker/model/session error → failed
 ```
 
-## Frontend
+Only `ready` permits a new session. Repeated Start for the active run is idempotent, Stop while idle is safe, and conflicting transitions return HTTP 409.
 
-```powershell
-cd "C:\Users\aveng\Documents\Codex\CAG (MP)\frontend"
-& "C:\Program Files\nodejs\npm.cmd" install
-Copy-Item .env.example .env.local
-& "C:\Program Files\nodejs\npm.cmd" run dev
-```
+## Control security
 
-Open:
+Start/Stop accepts localhost requests by default. Read-only dashboard data may still be viewed over the LAN. To enable LAN control deliberately, configure both:
 
 ```text
-http://localhost:5173
+CV_CONTROL_ALLOW_LAN=true
+CV_CONTROL_TOKEN=replace-with-a-long-random-secret
 ```
 
-This is development mode. The React app runs through Vite and calls the backend using `VITE_API_URL`.
+Remote control then requires `X-Operator-Token`. The dashboard presents this as an operator access code and keeps it only in memory.
 
-## One-Command Demo Start
-
-After installing backend and frontend dependencies once:
-
-```powershell
-.\start.ps1
-```
-
-This starts the backend and Vite frontend separately for development.
-
-## Centralised Server Mode
-
-For deployment testing, run the dashboard as a single server. Your laptop can act as the temporary server first:
-
-```text
-Your laptop:
-- Mosquitto MQTT broker
-- FastAPI backend
-- SQLite database
-- uploaded crop images
-- compiled React dashboard
-
-Friend strong PC:
-- CV pipeline publishes MQTT to your laptop IP
-
-Staff/test devices:
-- browser only
-```
-
-Run:
-
-```powershell
-.\start_server.ps1
-```
-
-The script builds `frontend/dist` and starts FastAPI on:
-
-```text
-http://localhost:8000
-```
-
-Other devices on the same network should open the network URL printed by the script, for example:
-
-```text
-http://192.168.50.197:8000
-```
-
-In server mode, the frontend uses same-origin API paths so viewer devices call the same server that served the dashboard. `start_server.ps1` forces this for the production build even if `frontend/.env.local` exists for development.
-
-If you build manually for server mode, clear `VITE_API_URL` first:
-
-```powershell
-cd "C:\Users\aveng\Documents\Codex\CAG (MP)\frontend"
-$env:VITE_API_URL=" "
-& "C:\Program Files\nodejs\npm.cmd" run build
-```
-
-For temporary laptop-server MQTT testing:
-
-```text
-Backend .env on your laptop:
-MQTT_ENABLED=true
-MQTT_HOST=localhost
-MQTT_PORT=1883
-
-Friend CV script on strong PC:
---mqtt-broker YOUR_LAPTOP_IP
---mqtt-port 1883
-```
-
-Staff devices only need access to port `8000`. The CV publisher needs access to MQTT port `1883`.
-
-## API
+## Relevant API
 
 ```text
 GET  /health
+GET  /api/cv/status
+POST /api/cv/session/start
+POST /api/cv/session/stop
+
 GET  /api/status
-GET  /api/stream
 GET  /api/cameras
-GET  /api/cameras/{camera_id}/status
 GET  /api/cameras/{camera_id}/stream
-GET  /api/metrics?run_id=
-GET  /api/metrics/trends?run_id=&minutes=60
-POST /api/metrics
-GET  /api/zones/status?run_id=
-GET  /api/reports/shift.xlsx?run_id=
-GET  /api/reports/shift.csv?run_id=
-POST /api/tactical
-GET  /api/tactical/latest?camera_id=&run_id=
-GET  /api/alerts?run_id=
-POST /api/alerts
-GET  /api/observations?gender=&min_age=&max_age=&camera_id=&run_id=
-GET  /api/observations/summary?run_id=
-POST /api/observations
-DELETE /api/observations
+GET  /api/metrics
+GET  /api/metrics/trends
+GET  /api/zones/status
+GET  /api/tactical/latest
+GET  /api/alerts
+GET  /api/evacuees
+GET  /api/evacuees/summary
+GET  /api/reports/shift.csv
+GET  /api/reports/shift.xlsx
 ```
 
-Metrics and alerts return latest global entries when `run_id` is omitted.
-Shift report exports use the latest 24 hours in Singapore time and sample the metric timeline every 5 minutes.
+The CV status contract includes `state`, `ready`, `running`, `run_id`, timestamps, worker PID, loading stage, safe error text, MQTT reachability, and whether the current request may control sessions.
 
-MQTT topics carry lightweight live telemetry:
+## Data flow
+
+The tracker publishes lightweight telemetry to:
 
 ```text
-cag/metrics   -> passenger_count, zone_counts, camera_online_count
-cag/tactical  -> people_count, inside_count, outside_visible_count, positions_cm, map_size_cm, outside_context_cm
-cag/alerts    -> severity and message
+cag/metrics
+cag/tactical
+cag/alerts
 ```
 
-The tactical map is a global fused floor map. The CV pipeline should publish `cag/tactical` with
-`camera_id: "fused"` for the combined 2D plane, while per-camera counts stay inside `zone_counts`.
-The dashboard camera selector changes the live video feed only; it does not change the tactical map.
-The dashboard treats `people_count` as inside occupancy. Points inside the calibrated tent render as red dots,
-while visible points outside the tent render as cyan context dots in a compressed outside border.
+FastAPI subscribes and stores metrics, alerts, tactical state, ReID galleries, and assistance evidence. Images and embeddings use FastAPI endpoints rather than MQTT. The dashboard tactical view renders the globally fused map; the camera selector affects only the live preview.
 
-Large person crop images still use HTTP multipart upload through `POST /api/observations`.
+Passenger evidence is an assistance aid, not face recognition or proof of a person’s real identity. Staff must manually verify model-provided role, age, gender, and ReID results.
 
-Passenger observations are an assistance filter only. The dashboard stores model-provided age/gender estimates and person crop images from an external pipeline; it does not run MiVOLO, identify people, or perform face recognition.
+## Logs and recovery
 
-Example observation upload:
+- CV worker and state transitions: `LogEvidance/cv_service.jsonl`
+- Mosquitto started by the script: `LogEvidance/mosquitto-server.log`
+- Technical test runs: `LogEvidance/*.console.log`
 
-```powershell
-curl.exe -X POST "http://localhost:8000/api/observations" `
-  -F "image=@C:\path\to\person_crop.jpg" `
-  -F "age=42" `
-  -F "gender=male" `
-  -F "camera_id=cam_1" `
-  -F "age_confidence=0.88" `
-  -F "gender_confidence=0.94"
-```
-
-## Seed Demo Data
-
-To test the dashboard without the external MiVOLO pipeline:
-
-```powershell
-cd "C:\Users\aveng\Documents\Codex\CAG (MP)\backend"
-.\.venv\Scripts\python.exe seed_demo_data.py --reset-observations
-```
-
-This creates generated person-crop placeholders, metrics, and alerts using:
-
-```text
-run_id = demo_assistance_001
-```
-
-Restart or refresh the frontend, then open the **Passenger Assistance** tab. Use the run ID filter above if you want to see only seeded records.
+See [README_UBUNTU.md](README_UBUNTU.md) for installation, LAN access, troubleshooting, and recovery commands.

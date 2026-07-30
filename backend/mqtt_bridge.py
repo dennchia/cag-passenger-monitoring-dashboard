@@ -32,6 +32,7 @@ class MqttBridge:
         self._last_metric_log_at = 0.0
         self._latest_zone_counts_by_run: dict[str, dict[str, int]] = {}
         self._latest_camera_online_count_by_run: dict[str, int] = {}
+        self._stopping = False
 
     def start(self) -> None:
         if not self.settings.mqtt_enabled:
@@ -42,6 +43,7 @@ class MqttBridge:
             return
 
         self.client = self._create_client()
+        self._stopping = False
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
         self.client.on_message = self._on_message
@@ -60,6 +62,7 @@ class MqttBridge:
         if self.client is None:
             return
         logger.info("Stopping MQTT bridge.")
+        self._stopping = True
         self.client.loop_stop()
         self.client.disconnect()
         self.client = None
@@ -76,8 +79,25 @@ class MqttBridge:
             client.subscribe(topic, qos=1)
             logger.info("MQTT bridge subscribed to %s.", topic)
 
-    def _on_disconnect(self, client, userdata, reason_code, properties=None) -> None:
-        logger.warning("MQTT bridge disconnected with result %s. Paho will attempt reconnect.", reason_code)
+    def _on_disconnect(
+        self,
+        client,
+        userdata,
+        disconnect_flags_or_reason_code,
+        reason_code=None,
+        properties=None,
+    ) -> None:
+        """Handle both Paho MQTT callback API versions without stopping its network loop."""
+        effective_reason_code = (
+            reason_code if reason_code is not None else disconnect_flags_or_reason_code
+        )
+        if self._stopping:
+            logger.info("MQTT bridge disconnected during shutdown with result %s.", effective_reason_code)
+        else:
+            logger.warning(
+                "MQTT bridge disconnected with result %s. Paho will attempt reconnect.",
+                effective_reason_code,
+            )
 
     def _on_message(self, client, userdata, message) -> None:
         topic = message.topic

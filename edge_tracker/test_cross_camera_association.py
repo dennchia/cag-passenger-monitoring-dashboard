@@ -52,6 +52,92 @@ class CrossCameraAssociationTests(unittest.TestCase):
         )
         self.assertEqual(len(fused), 2)
 
+    def test_same_location_provisional_id_counts_once_before_reid_confirmation(self):
+        left = observation("cam_1", 1, 8, (100.0, 100.0), confirmed=False)
+        right = observation("cam_2", 7, 8, (104.0, 102.0), confirmed=False)
+        left["identity_state"] = "provisional"
+        right["identity_state"] = "provisional"
+
+        fused = fuse_camera_points(
+            {"cam_1": [left], "cam_2": [right]},
+            max_distance_cm=50.0,
+            require_reid=True,
+        )
+
+        self.assertEqual(len(fused), 1)
+        self.assertEqual(fused[0]["identity_id"], 8)
+        self.assertEqual(fused[0]["identity_state"], "provisional")
+
+    def test_unnumbered_temporary_group_counts_once_while_analyzing(self):
+        left = observation("cam_1", 1, None, (100.0, 100.0), confirmed=False)
+        right = observation("cam_2", 7, None, (104.0, 102.0), confirmed=False)
+        for item in (left, right):
+            item["temporary_group_id"] = "tmp_1"
+            item["identity_state"] = "analyzing"
+            item["location_managed"] = True
+
+        fused = fuse_camera_points(
+            {"cam_1": [left], "cam_2": [right]},
+            max_distance_cm=50.0,
+            require_reid=True,
+        )
+
+        self.assertEqual(len(fused), 1)
+        self.assertIsNone(fused[0]["identity_id"])
+        self.assertEqual(fused[0]["temporary_group_id"], "tmp_1")
+        self.assertEqual(fused[0]["identity_state"], "analyzing")
+
+    def test_existing_master_and_later_provisional_member_count_once(self):
+        left = observation("cam_1", 1, 8, (100.0, 100.0), confirmed=True)
+        right = observation("cam_2", 7, 8, (104.0, 102.0), confirmed=False)
+        left["identity_state"] = "confirmed"
+        right["identity_state"] = "provisional"
+
+        fused = fuse_camera_points(
+            {"cam_1": [left], "cam_2": [right]},
+            max_distance_cm=50.0,
+            require_reid=True,
+        )
+
+        self.assertEqual(len(fused), 1)
+        self.assertEqual(fused[0]["identity_id"], 8)
+        self.assertEqual(fused[0]["identity_state"], "provisional")
+
+    def test_location_managed_id_does_not_flicker_on_one_bad_map_or_time_sample(self):
+        left = observation("cam_1", 1, 8, (0.0, 0.0), captured_at=10.0)
+        right = observation("cam_2", 7, 8, (70.0, 0.0), captured_at=10.6)
+        for item in (left, right):
+            item["identity_state"] = "confirmed"
+            item["location_managed"] = True
+            item["location_pair_recent"] = True
+
+        fused = fuse_camera_points(
+            {"cam_1": [left], "cam_2": [right]},
+            max_distance_cm=50.0,
+            max_skew_seconds=0.35,
+            require_reid=True,
+        )
+
+        self.assertEqual(len(fused), 1)
+        self.assertEqual(fused[0]["identity_id"], 8)
+
+    def test_location_wobble_tolerance_has_a_hard_safety_cap(self):
+        left = observation("cam_1", 1, 8, (0.0, 0.0), captured_at=10.0)
+        right = observation("cam_2", 7, 8, (100.0, 0.0), captured_at=11.0)
+        for item in (left, right):
+            item["identity_state"] = "confirmed"
+            item["location_managed"] = True
+            item["location_pair_recent"] = True
+
+        fused = fuse_camera_points(
+            {"cam_1": [left], "cam_2": [right]},
+            max_distance_cm=50.0,
+            max_skew_seconds=0.35,
+            require_reid=True,
+        )
+
+        self.assertEqual(len(fused), 2)
+
     def test_unknown_appearance_does_not_merge_when_reid_is_required(self):
         fused = fuse_camera_points(
             {

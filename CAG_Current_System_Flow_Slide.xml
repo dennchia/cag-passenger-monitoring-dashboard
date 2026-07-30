@@ -1,0 +1,284 @@
+<mxfile host="app.diagrams.net" agent="Codex">
+  <diagram id="cag-current-flow-slide" name="Current System Flow">
+    <mxGraphModel dx="1712" dy="1626" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1150" pageHeight="700" background="#082F49" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=18;fontStyle=1;fontColor=#FFFFFF;fillColor=none;strokeColor=none;" value="CURRENT CAG EVACUEE TRACKING SYSTEM FLOW" vertex="1">
+          <mxGeometry height="30" width="590" x="280" y="-10" as="geometry" />
+        </mxCell>
+        <mxCell id="start" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#1E3A2B;strokeColor=#70AD47;fontColor=#FFFFFF;fontStyle=1;fontSize=11;" value="Start System" vertex="1">
+          <mxGeometry height="50" width="85" x="15" y="105" as="geometry" />
+        </mxCell>
+        <mxCell id="settings" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#17324D;strokeColor=#5B9BD5;fontColor=#FFFFFF;fontStyle=1;fontSize=10;" value="Read Launcher / CLI Settings" vertex="1">
+          <mxGeometry height="50" width="120" x="125" y="105" as="geometry" />
+        </mxCell>
+        <mxCell id="services" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#17324D;strokeColor=#5B9BD5;fontColor=#FFFFFF;fontStyle=1;fontSize=10;" value="Connect 2 RTSP Cameras&lt;br&gt;+ optional MQTT / FastAPI" vertex="1">
+          <mxGeometry height="50" width="135" x="270" y="105" as="geometry" />
+        </mxCell>
+        <mxCell id="cal_decision" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#5B3A08;strokeColor=#C88A24;fontColor=#FFFFFF;fontStyle=1;fontSize=10;" value="Saved Homographies?" vertex="1">
+          <mxGeometry height="60" width="125" x="440" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="load_map" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#17324D;strokeColor=#5B9BD5;fontColor=#FFFFFF;fontStyle=1;fontSize=10;" value="Load Camera 1 &amp; 2&lt;br&gt;Homography JSON" vertex="1">
+          <mxGeometry height="50" width="130" x="610" y="105" as="geometry" />
+        </mxCell>
+        <mxCell id="load_models" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#17324D;strokeColor=#5B9BD5;fontColor=#FFFFFF;fontStyle=1;fontSize=10;" value="Load YOLO11, ByteTrack,&lt;br&gt;MediaPipe &amp; TransReID" vertex="1">
+          <mxGeometry height="50" width="145" x="775" y="105" as="geometry" />
+        </mxCell>
+        <mxCell id="ready" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E3A2B;strokeColor=#70AD47;fontColor=#FFFFFF;fontStyle=1;fontSize=10;" value="Begin Main Loop" vertex="1">
+          <mxGeometry height="50" width="115" x="955" y="105" as="geometry" />
+        </mxCell>
+        <mxCell id="cal_open" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#17324D;strokeColor=#5B9BD5;fontColor=#FFFFFF;fontStyle=1;fontSize=10;" value="Open Calibration" vertex="1">
+          <mxGeometry height="35" width="110" x="405" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cal_click" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#17324D;strokeColor=#5B9BD5;fontColor=#FFFFFF;fontStyle=1;fontSize=10;" value="Click 4 Map Corners&lt;br&gt;per Camera" vertex="1">
+          <mxGeometry height="35" width="120" x="550" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cal_save" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#17324D;strokeColor=#5B9BD5;fontColor=#FFFFFF;fontStyle=1;fontSize=10;" value="Save Homography JSON" vertex="1">
+          <mxGeometry height="35" width="125" x="705" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="capture" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#163A4A;strokeColor=#00A6C8;fontColor=#FFFFFF;fontStyle=1;fontSize=10;" value="Latest-Frame Capture Threads&lt;br&gt;(avoid RTSP backlog)" vertex="1">
+          <mxGeometry height="55" width="125" x="15" y="235" as="geometry" />
+        </mxCell>
+        <mxCell id="undistort" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#163A4A;strokeColor=#00A6C8;fontColor=#FFFFFF;fontStyle=1;fontSize=10;" value="Camera 2 Fisheye&lt;br&gt;Undistortion" vertex="1">
+          <mxGeometry height="55" width="115" x="165" y="235" as="geometry" />
+        </mxCell>
+        <mxCell id="detect" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#163A4A;strokeColor=#00A6C8;fontColor=#FFFFFF;fontStyle=1;fontSize=10;" value="Parallel Per-Camera&lt;br&gt;YOLO11 + ByteTrack IDs" vertex="1">
+          <mxGeometry height="55" width="135" x="305" y="235" as="geometry" />
+        </mxCell>
+        <mxCell id="pose" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#163A4A;strokeColor=#00A6C8;fontColor=#FFFFFF;fontStyle=1;fontSize=10;" value="Foot Point + MediaPipe Pose&lt;br&gt;Full-Body / Angle Quality" vertex="1">
+          <mxGeometry height="55" width="145" x="465" y="235" as="geometry" />
+        </mxCell>
+        <mxCell id="homography" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#163A4A;strokeColor=#00A6C8;fontColor=#FFFFFF;fontStyle=1;fontSize=10;" value="Homography Transform&lt;br&gt;to Shared Map X/Y" vertex="1">
+          <mxGeometry height="55" width="130" x="635" y="235" as="geometry" />
+        </mxCell>
+        <mxCell id="sync" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#163A4A;strokeColor=#00A6C8;fontColor=#FFFFFF;fontStyle=1;fontSize=10;" value="Wait for Both Processed&lt;br&gt;Camera Results" vertex="1">
+          <mxGeometry height="55" width="130" x="790" y="235" as="geometry" />
+        </mxCell>
+        <mxCell id="candidate" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#5B3A08;strokeColor=#C88A24;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="Cross-Camera Candidate?&lt;br&gt;≤50 cm and ≤0.35 s" vertex="1">
+          <mxGeometry height="85" width="135" x="950" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="region_identity" parent="1" style="swimlane;html=1;horizontal=1;startSize=24;rounded=1;fillColor=#111827;strokeColor=#8B5CF6;fontColor=#D8C8FF;fontStyle=1;fontSize=11;opacity=35;" value="IDENTITY ANALYSIS AND FUSION" vertex="1">
+          <mxGeometry height="235" width="950" x="135" y="335" as="geometry" />
+        </mxCell>
+        <mxCell id="reid_result" parent="region_identity" style="rhombus;whiteSpace=wrap;html=1;fillColor=#5B3A08;strokeColor=#C88A24;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="Global ReID Result?" vertex="1">
+          <mxGeometry height="80" width="120" x="145" y="87" as="geometry" />
+        </mxCell>
+        <mxCell id="separate" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#3A273F;strokeColor=#A66DD4;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="Keep Observations Separate&lt;br&gt;and Continue Tracking" vertex="1">
+          <mxGeometry height="45" width="120" x="950" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="repeat_location" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#5B3A08;strokeColor=#C88A24;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="Repeated Stable&lt;br&gt;Location Matches?" vertex="1">
+          <mxGeometry height="75" width="120" x="810" y="355" as="geometry" />
+        </mxCell>
+        <mxCell id="temp_group" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3A273F;strokeColor=#A66DD4;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="Create Internal Temporary Group&lt;br&gt;Show “ANALYZING”; Count Once&lt;br&gt;No Numbered Master ID Yet" vertex="1">
+          <mxGeometry height="65" width="135" x="935" y="445" as="geometry" />
+        </mxCell>
+        <mxCell id="collect" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#3A273F;strokeColor=#A66DD4;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="Collect Good Full-Body Crops&lt;br&gt;Baseline + Available&lt;br&gt;Front / Back / Left / Right" vertex="1">
+          <mxGeometry height="65" width="140" x="770" y="445" as="geometry" />
+        </mxCell>
+        <mxCell id="extract" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#3A273F;strokeColor=#A66DD4;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="TransReID JPM/SIE&lt;br&gt;Extract 3840-D Feature Vector" vertex="1">
+          <mxGeometry height="50" width="140" x="600" y="452" as="geometry" />
+        </mxCell>
+        <mxCell id="gallery" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#3A273F;strokeColor=#A66DD4;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="Search All Existing Masters&lt;br&gt;Baseline + Angle Feature Slots" vertex="1">
+          <mxGeometry height="50" width="140" x="430" y="452" as="geometry" />
+        </mxCell>
+        <mxCell id="existing" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E3A2B;strokeColor=#70AD47;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="Strong Match ≤0.20&lt;br&gt;Assign Existing Master ID" vertex="1">
+          <mxGeometry height="50" width="110" x="115" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="borderline" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#5B3A08;strokeColor=#C88A24;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="Borderline Match&lt;br&gt;Collect Independent Evidence&lt;br&gt;and Confirm / Reject" vertex="1">
+          <mxGeometry height="60" width="110" x="115" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="new_master" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E3A2B;strokeColor=#70AD47;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="No Existing Match&lt;br&gt;Create New Permanent Master ID" vertex="1">
+          <mxGeometry height="35" width="125" x="280" y="525" as="geometry" />
+        </mxCell>
+        <mxCell id="confirm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E3A2B;strokeColor=#70AD47;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="Confirm / Promote Identity&lt;br&gt;Commit Pending Gallery Evidence" vertex="1">
+          <mxGeometry height="35" width="145" x="445" y="525" as="geometry" />
+        </mxCell>
+        <mxCell id="async" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4A2F10;strokeColor=#F0A43C;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="Background Tasks:&lt;br&gt;Role + MiVOLO, Evidence PNG,&lt;br&gt;FastAPI / SQLite ReID Persistence" vertex="1">
+          <mxGeometry height="45" width="160" x="620" y="518" as="geometry" />
+        </mxCell>
+        <mxCell id="fuse" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E3A2B;strokeColor=#70AD47;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="Fuse Same Master / Temp Group&lt;br&gt;One Person = One Count" vertex="1">
+          <mxGeometry height="45" width="150" x="810" y="518" as="geometry" />
+        </mxCell>
+        <mxCell id="render" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#17324D;strokeColor=#5B9BD5;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="Update Camera Views&lt;br&gt;and Tactical Maps" vertex="1">
+          <mxGeometry height="45" width="130" x="915" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="mqtt" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#24401C;strokeColor=#78B84B;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="Publish MQTT QoS 1&lt;br&gt;tactical + metrics" vertex="1">
+          <mxGeometry height="45" width="130" x="750" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="dashboard" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#17324D;strokeColor=#5B9BD5;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="FastAPI Updates REST / SQLite&lt;br&gt;React Dashboard Polls Data" vertex="1">
+          <mxGeometry height="45" width="150" x="565" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="input" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#5B3A08;strokeColor=#C88A24;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="User Input?" vertex="1">
+          <mxGeometry height="75" width="110" x="420" y="605" as="geometry" />
+        </mxCell>
+        <mxCell id="shutdown" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4B1F24;strokeColor=#C0504D;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" value="Q: Save Logs and&lt;br&gt;Shut Down Safely" vertex="1">
+          <mxGeometry height="45" width="125" x="250" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="end" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#4B1F24;strokeColor=#C0504D;fontColor=#FFFFFF;fontStyle=1;fontSize=10;" value="End System" vertex="1">
+          <mxGeometry height="45" width="90" x="115" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="start" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#B9D9F5;" target="settings">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="settings" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#B9D9F5;" target="services">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="services" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#B9D9F5;" target="cal_decision">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="cal_decision" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#d79b00;fontColor=#FFFFFF;fillColor=#ffe6cc;labelBackgroundColor=none;" target="load_map" value="Yes">
+          <mxGeometry relative="1" x="0.1111" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="cal_decision" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#C88A24;fontColor=#FFFFFF;labelBackgroundColor=none;" target="cal_open" value="No">
+          <mxGeometry relative="1" x="-0.2179" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="cal_open" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#B9D9F5;" target="cal_click">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="cal_click" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#B9D9F5;" target="cal_save">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="cal_save" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#B9D9F5;" target="load_map">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="load_map" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#B9D9F5;" target="load_models">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="1" source="load_models" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#B9D9F5;" target="ready">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" edge="1" parent="1" source="ready" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#00A6C8;" target="capture">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1095" y="190" />
+              <mxPoint x="75" y="190" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e12" edge="1" parent="1" source="capture" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#00A6C8;" target="undistort">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" edge="1" parent="1" source="undistort" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#00A6C8;" target="detect">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" edge="1" parent="1" source="detect" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#00A6C8;" target="pose">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" edge="1" parent="1" source="pose" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#00A6C8;" target="homography">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" edge="1" parent="1" source="homography" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#00A6C8;" target="sync">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e17" edge="1" parent="1" source="sync" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#00A6C8;" target="candidate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e18" edge="1" parent="1" source="candidate" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#C0504D;fontColor=#FFFFFF;labelBackgroundColor=none;" target="separate" value="No">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e19" edge="1" parent="1" source="candidate" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#70AD47;fontColor=#FFFFFF;labelBackgroundColor=none;" target="repeat_location" value="Yes">
+          <mxGeometry relative="1" x="0.4784" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e20" edge="1" parent="1" source="repeat_location" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#C88A24;fontColor=#FFFFFF;labelBackgroundColor=none;" target="separate" value="No / Retry">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e21" edge="1" parent="1" source="repeat_location" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#70AD47;fontColor=#FFFFFF;labelBackgroundColor=none;" target="temp_group" value="Yes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e22" edge="1" parent="1" source="temp_group" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#A66DD4;" target="collect">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e23" edge="1" parent="1" source="collect" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#A66DD4;" target="extract">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e24" edge="1" parent="1" source="extract" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#A66DD4;" target="gallery">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e25" edge="1" parent="1" source="gallery" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#A66DD4;" target="reid_result">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e26" edge="1" parent="1" source="reid_result" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#70AD47;fontColor=#FFFFFF;labelBackgroundColor=none;" target="existing" value="Strong">
+          <mxGeometry relative="1" x="0.0765" y="3" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e27" edge="1" parent="1" source="reid_result" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#C88A24;fontColor=#FFFFFF;labelBackgroundColor=none;" target="borderline" value="Borderline">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e28" edge="1" parent="1" source="reid_result" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#C0504D;fontColor=#FFFFFF;labelBackgroundColor=none;" target="new_master" value="No match">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e29" edge="1" parent="1" source="borderline" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#70AD47;fontColor=#FFFFFF;labelBackgroundColor=none;" target="existing" value="Confirmed">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e30" edge="1" parent="1" source="borderline" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#C0504D;fontColor=#FFFFFF;labelBackgroundColor=none;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="new_master" value="Rejected">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="170" y="550.03" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e31" edge="1" parent="1" source="existing" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#70AD47;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" target="confirm">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="90" y="425" />
+              <mxPoint x="90" y="570.03" />
+              <mxPoint x="517.49" y="570.03" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e32" edge="1" parent="1" source="new_master" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#70AD47;" target="confirm">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e33" edge="1" parent="1" source="confirm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#F0A43C;dashed=1;" target="async">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e34" edge="1" parent="1" source="confirm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#70AD47;" target="fuse">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e35" edge="1" parent="1" source="fuse" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#B9D9F5;" target="render">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e36" edge="1" parent="1" source="render" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#78B84B;" target="mqtt">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e37" edge="1" parent="1" source="mqtt" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#78B84B;" target="dashboard">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e38" edge="1" parent="1" source="dashboard" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#B9D9F5;" target="input">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e39" edge="1" parent="1" source="input" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#C0504D;fontColor=#FFFFFF;" target="shutdown" value="Q">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e40" edge="1" parent="1" source="shutdown" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#C0504D;" target="end">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e41" edge="1" parent="1" source="input" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#00A6C8;fontColor=#FFFFFF;" target="capture" value="None: next frame">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="475" y="590" />
+              <mxPoint x="75" y="590" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e42" edge="1" parent="1" source="input" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#C88A24;fontColor=#FFFFFF;dashed=1;labelBackgroundColor=none;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="cal_open" value="R: recalibrate">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1100" y="680" />
+              <mxPoint x="1100" y="30" />
+              <mxPoint x="460" y="30" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
